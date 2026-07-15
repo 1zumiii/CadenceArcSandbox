@@ -1,0 +1,4 @@
+[submodule "Plugins/CadenceArc"]
+	path = Plugins/CadenceArc
+	url = https://github.com/1zumiii/CadenceArc.git
+	branch = master
