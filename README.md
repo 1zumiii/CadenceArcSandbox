@@ -37,7 +37,18 @@ InputTag
   -> Completed / Cancelled / Interrupted
 ```
 
-The current `0.2.0-alpha` implementation has 11 passing Unreal Automation Tests. The next milestone is a single-input buffer controlled by explicit timing-window events.
+Phase 3 added an externally controlled, RequestId-protected input window and a Last Input Wins single-slot buffer:
+
+```text
+Executing action
+  -> open buffer window
+  -> cache the latest semantic input
+  -> action completes
+  -> resolve the cached input
+  -> emit the next ActionRequest
+```
+
+The current `0.3.0-alpha` implementation has 15 passing Unreal Automation Tests. Buffer consumption remains part of the execution handshake, while animation, GAS, collision, and damage stay outside the framework core.
 
 ## Getting Started
 
@@ -138,4 +149,3 @@ The following remain outside the core framework:
 - A supported Unreal Engine C++ toolchain
 - Git
 - Git LFS
-
