@@ -3,6 +3,12 @@
 
 void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionRequest& Request)
 {
+	if (!IsValid(Resolver))
+	{
+		Debug::Print(TEXT("Resolver is not valid. Cannot start request."));
+		return;
+	}
+
 	if (BufferOpenDelay <= 0.0f || BufferOpenDelay > BufferCloseDelay || BufferCloseDelay > ActionDuration)
 	{
 		Debug::Print(FString::Printf(
@@ -10,18 +16,14 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 			BufferOpenDelay,
 			BufferCloseDelay,
 			ActionDuration));
-		return;
-	}
-
-	if (!IsValid(Resolver))
-	{
-		Debug::Print(TEXT("Resolver is not valid. Cannot start request."));
+		Resolver->NotifyActionRejected(Request.RequestId);
 		return;
 	}
 
 	if (!IsValid(GetWorld()))
 	{
 		Debug::Print(TEXT("World is not valid. Cannot start request."));
+		Resolver->NotifyActionRejected(Request.RequestId);
 		return;
 	}
 
