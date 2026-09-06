@@ -118,7 +118,9 @@ void UCadenceArcDemoExecutorComponent::HandleCloseBufferWindow(const int64 Reque
 
 void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 RequestId)
 {
-	FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(RequestId);
+	FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(
+		RequestId, GetWorld()->GetTimeSeconds()
+	);
 	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
 	if (
 		Outcome.HandshakeResult == ECadenceArcHandshakeResult::Success &&
@@ -150,7 +152,8 @@ void UCadenceArcDemoExecutorComponent::SubmitInput(const FGameplayTag& InputTag)
 		return;
 	}
 	FCadenceArcActionRequest Request;
-	switch (const ECadenceArcInputResult InputResult = Resolver->SubmitInput(InputTag, Request))
+	const FCadenceArcInputEvent InputEvent = {.InputTag = InputTag, .TimestampSeconds = GetWorld()->GetTimeSeconds()};
+	switch (const ECadenceArcInputResult InputResult = Resolver->SubmitInput(InputEvent, Request))
 	{
 	case ECadenceArcInputResult::Success:
 		Debug::Print(FString::Printf(
