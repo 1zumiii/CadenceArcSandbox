@@ -121,6 +121,13 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 	FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(
 		RequestId, GetWorld()->GetTimeSeconds()
 	);
+	Debug::Print(FString::Printf(
+		TEXT("Action completed. Request Id: %s, Completion time: %f, Handshake Result: %s, Buffer Consume Result: %s"),
+		*FString::FromInt(RequestId),
+		GetWorld()->GetTimeSeconds(),
+		*UEnum::GetValueAsString(Outcome.HandshakeResult),
+		*UEnum::GetValueAsString(Outcome.BufferConsumeResult)
+	));
 	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
 	if (
 		Outcome.HandshakeResult == ECadenceArcHandshakeResult::Success &&
@@ -128,6 +135,12 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 	)
 	{
 		StartRequest(Outcome.NextActionRequest);
+		Debug::Print(FString::Printf(
+			TEXT("Next action request started. Request Id: %s, Source: %s, Target: %s"),
+			*FString::FromInt(Outcome.NextActionRequest.RequestId),
+			*Outcome.NextActionRequest.SourceActionTag.ToString(),
+			*Outcome.NextActionRequest.TargetActionTag.ToString()
+		));
 	}
 }
 

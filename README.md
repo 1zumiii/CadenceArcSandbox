@@ -48,7 +48,29 @@ Executing action
   -> emit the next ActionRequest
 ```
 
-The current `0.3.0-alpha` implementation has 15 passing Unreal Automation Tests. Buffer consumption remains part of the execution handshake, while animation, GAS, collision, and damage stay outside the framework core.
+Phase 4 connected Enhanced Input to a Demo Character and a Timer-driven Demo Executor. Phase 5 added caller-supplied input/completion timestamps and optional graph-wide buffered-input expiry. Editor graph validation now catches invalid configuration before play.
+
+The current editor suite contains 30 Unreal Automation Tests: 24 resolver tests and 6 graph-validation groups. The plugin descriptor still reports `0.3.0-alpha`; its development API has advanced beyond the original release contract. Animation, GAS, collision, and damage remain outside the framework core.
+
+## Demo and Time Contract
+
+The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`, then forwards them to `UCadenceArcDemoExecutorComponent`.
+
+The Demo Executor creates an `FCadenceArcInputEvent` with the input tag and `GetWorld()->GetTimeSeconds()`. It passes the same World game-time domain to `NotifyActionCompleted(RequestId, CompletionTimestampSeconds)`. Time is measured in seconds, follows pause/time dilation, and is not scaled by frame rate in the resolver.
+
+`DA_TestComboGraph` supplies the demo graph. Its `MaxBufferedInputAgeSeconds` is a finite, nonnegative value: `0` disables expiry; a positive value limits the age of the last buffered event at completion. Expiry preserves the completed action node and returns the resolver to `Ready` without starting a new request.
+
+`LogCadenceArcDemo` writes debug messages to the Output Log and `Saved/Logs/CadenceArcSandbox.log`, alongside screen messages. Completion messages include the completion time and separate handshake and buffer-consumption results. Timer execution and all World access remain in Sandbox.
+
+## Manual Acceptance
+
+Use Unreal's asset validation on a valid combo graph and an intentionally invalid copy. Keep the invalid copy separate from the active demo graph. Verify that errors identify invalid configuration and that a restored valid graph passes.
+
+PIE smoke checks confirm real input, window handling, continuation, and readable results. Exact expiry boundaries, invalid time, and Last Input Wins are covered by deterministic automation; manual subsecond timing is not an acceptance requirement.
+
+For an easy visual expiry demonstration, optionally set action duration to 6 seconds, the buffer window to 1-5 seconds, and MaxAge to 2 seconds. An input near the beginning of the window expires; one near the end remains valid. These are suggested demonstration settings, not the component defaults. No frame-perfect input or repeat of automated boundary tests is needed.
+
+The user reported the editor/PIE acceptance checks as normal on 2026-09-08. This records human integration feedback; the automation result is separate evidence.
 
 ## Getting Started
 

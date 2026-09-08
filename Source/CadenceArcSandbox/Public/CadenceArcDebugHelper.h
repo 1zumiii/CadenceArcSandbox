@@ -1,4 +1,5 @@
 ﻿#pragma once
+#include "CadenceArcSandbox/CadenceArcSandbox.h"
 
 namespace Debug
 {
@@ -8,5 +9,6 @@ namespace Debug
 		{
 			GEngine->AddOnScreenDebugMessage(-1, Duration, Color, Message);
 		}
+		UE_LOG(LogCadenceArcDemo, Log, TEXT("%s"), *Message);
 	}
 }
