@@ -27,12 +27,12 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 		return;
 	}
 
-	ECadenceArcHandshakeResult HandshakeResult = Resolver->NotifyActionStarted(Request.RequestId);
+	const ECadenceArcHandshakeResult HandshakeResult = Resolver->NotifyActionStarted(Request.RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Failed to start action. Request Id: %s, Source: %s, Target: %s, Result: %s"),
-			*FString::FromInt(Request.RequestId),
+			TEXT("Failed to start action. Request Id: %lld, Source: %s, Target: %s, Result: %s"),
+			Request.RequestId,
 			*Request.SourceActionTag.ToString(),
 			*Request.TargetActionTag.ToString(),
 			*UEnum::GetValueAsString(HandshakeResult)));
@@ -78,6 +78,12 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 		ActionDuration,
 		false
 	);
+	Debug::Print(FString::Printf(
+		TEXT("Action started. Request Id: %lld, Source: %s, Target: %s"),
+		Request.RequestId,
+		*Request.SourceActionTag.ToString(),
+		*Request.TargetActionTag.ToString()
+	));
 }
 
 void UCadenceArcDemoExecutorComponent::HandleOpenBufferWindow(const int64 RequestId) const
@@ -86,33 +92,29 @@ void UCadenceArcDemoExecutorComponent::HandleOpenBufferWindow(const int64 Reques
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Failed to open buffer window. Request Id: %s, Result: %s"),
-			*FString::FromInt(RequestId),
-			*UEnum::GetValueAsString(HandshakeResult)));
+			TEXT("Failed to open buffer window. Request Id: %lld, Result: %s"),
+			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
 	}
 	else
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Buffer window opened. Request Id: %s"),
-			*FString::FromInt(RequestId)));
+			TEXT("Buffer window opened. Request Id: %lld"), RequestId));
 	}
 }
 
 void UCadenceArcDemoExecutorComponent::HandleCloseBufferWindow(const int64 RequestId) const
 {
-	ECadenceArcHandshakeResult HandshakeResult = Resolver->CloseBufferWindow(RequestId);
+	const ECadenceArcHandshakeResult HandshakeResult = Resolver->CloseBufferWindow(RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Failed to close buffer window. Request Id: %s, Result: %s"),
-			*FString::FromInt(RequestId),
-			*UEnum::GetValueAsString(HandshakeResult)));
+			TEXT("Failed to close buffer window. Request Id: %lld, Result: %s"),
+			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
 	}
 	else
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Buffer window closed. Request Id: %s"),
-			*FString::FromInt(RequestId)));
+			TEXT("Buffer window closed. Request Id: %lld"), RequestId));
 	}
 }
 
@@ -122,25 +124,33 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 		RequestId, GetWorld()->GetTimeSeconds()
 	);
 	Debug::Print(FString::Printf(
-		TEXT("Action completed. Request Id: %s, Completion time: %f, Handshake Result: %s, Buffer Consume Result: %s"),
-		*FString::FromInt(RequestId),
+		TEXT("Completion callback result. Request Id: "
+			"%lld, Completion time: %f, Handshake Result: %s, Resolution Category: %s, Resolution Reason: %s"
+		),
+		RequestId,
 		GetWorld()->GetTimeSeconds(),
-		*UEnum::GetValueAsString(Outcome.HandshakeResult),
-		*UEnum::GetValueAsString(Outcome.BufferConsumeResult)
+		*UEnum::GetValueAsString(Outcome.GetHandshakeResult()),
+		*UEnum::GetValueAsString(Outcome.GetBufferConsumption()),
+		*UEnum::GetValueAsString(Outcome.GetBufferConsumptionReason())
 	));
-	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
-	if (
-		Outcome.HandshakeResult == ECadenceArcHandshakeResult::Success &&
-		Outcome.BufferConsumeResult == ECadenceArcBufferConsumeResult::Resolved
-	)
+
+	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
 	{
-		StartRequest(Outcome.NextActionRequest);
 		Debug::Print(FString::Printf(
-			TEXT("Next action request started. Request Id: %s, Source: %s, Target: %s"),
-			*FString::FromInt(Outcome.NextActionRequest.RequestId),
-			*Outcome.NextActionRequest.SourceActionTag.ToString(),
-			*Outcome.NextActionRequest.TargetActionTag.ToString()
-		));
+			TEXT("Action completion handshake failed. Request Id: %lld, Result: %s"),
+			RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
+		return;
+	}
+
+	Debug::Print(FString::Printf(
+		TEXT("Action completed successfully. Request Id: %lld"),
+		RequestId
+	));
+
+	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
+	if (Outcome.HasNextActionRequest())
+	{
+		StartRequest(Outcome.GetNextActionRequest());
 	}
 }
 
@@ -164,30 +174,37 @@ void UCadenceArcDemoExecutorComponent::SubmitInput(const FGameplayTag& InputTag)
 		Debug::Print(TEXT("Resolver is not valid. Cannot submit input."));
 		return;
 	}
-	FCadenceArcActionRequest Request;
 	const FCadenceArcInputEvent InputEvent = {.InputTag = InputTag, .TimestampSeconds = GetWorld()->GetTimeSeconds()};
-	switch (const ECadenceArcInputResult InputResult = Resolver->SubmitInput(InputEvent, Request))
+	const FCadenceArcSubmitOutcome SubmitOutcome = Resolver->SubmitInput(InputEvent);
+	Debug::Print(FString::Printf(TEXT("Request Produced for Input: %s"), *InputTag.ToString()));
+	if (SubmitOutcome.HasActionRequest())
 	{
-	case ECadenceArcInputResult::Success:
+		StartRequest(SubmitOutcome.GetActionRequest());
+	}
+	switch (SubmitOutcome.GetCategory())
+	{
+	case ECadenceArcResolutionCategory::RequestProduced:
 		Debug::Print(FString::Printf(
-			TEXT("Input submitted successfully. Request Id: %s, Source: %s, Target: %s"),
-			*FString::FromInt(Request.RequestId),
-			*Request.SourceActionTag.ToString(),
-			*Request.TargetActionTag.ToString()));
-		StartRequest(Request);
+			TEXT("Request Produced for Input: %s"), *InputTag.ToString()));
 		break;
-	case ECadenceArcInputResult::Buffered:
+	case ECadenceArcResolutionCategory::Buffered:
 		Debug::Print(FString::Printf(TEXT("Input buffered: %s"), *InputTag.ToString()));
 		break;
+	case ECadenceArcResolutionCategory::NoAction:
+		Debug::Print(FString::Printf(
+				TEXT("Input ignored: %s, Reason: %s"), *InputTag.ToString(),
+				*UEnum::GetValueAsString(SubmitOutcome.GetReason()))
+		);
+		break;
 	default:
-		Debug::Print(FString::Printf(TEXT("Input rejected: %s"), *UEnum::GetValueAsString(InputResult)));
+		Debug::Print(FString::Printf(TEXT("Input rejected: %s"), *UEnum::GetValueAsString(SubmitOutcome.GetReason())));
 		break;
 	}
 }
 
 void UCadenceArcDemoExecutorComponent::ResetCombo()
 {
-	if (IsValid(Resolver) && Resolver->Reset())
+	if (IsValid(Resolver) && Resolver->Reset() == ECadenceArcResolverResetResult::Success)
 	{
 		Debug::Print(
 			FString::Printf(TEXT("Combo reset. Current Action Tag: %s"), *Resolver->GetCurrentActionTag().ToString()));
@@ -201,7 +218,7 @@ void UCadenceArcDemoExecutorComponent::BeginPlay()
 	Super::BeginPlay();
 	if (!IsValid(ComboGraph)) { return; }
 	Resolver = NewObject<UCadenceArcResolver>(this);
-	ECadenceArcResolverInitResult ResolverInitResult = Resolver->Initialize(ComboGraph);
+	const ECadenceArcResolverInitResult ResolverInitResult = Resolver->Initialize(ComboGraph);
 	Debug::Print(FString::Printf(TEXT("Resolver Init Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)));
 	Debug::Print(FString::Printf(TEXT("Current Action Tag: %s"), *Resolver->GetCurrentActionTag().ToString()));
 }
