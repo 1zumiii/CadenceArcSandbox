@@ -50,7 +50,9 @@ Executing action
 
 Phase 4 connected Enhanced Input to a Demo Character and a Timer-driven Demo Executor. Phase 5 added caller-supplied input/completion timestamps and optional graph-wide buffered-input expiry. Editor graph validation now catches invalid configuration before play.
 
-The current editor suite contains 30 Unreal Automation Tests: 24 resolver tests and 6 graph-validation groups. The plugin descriptor still reports `0.3.0-alpha`; its development API has advanced beyond the original release contract. Animation, GAS, collision, and damage remain outside the framework core.
+The current editor suite contains 31 Unreal Automation Tests: 25 resolver tests and 6 graph-validation groups. The plugin descriptor still reports `0.3.0-alpha`; its development API has advanced beyond the original release contract. Animation, GAS, collision, and damage remain outside the framework core.
+
+The C++ Demo reads `FCadenceArcSubmitOutcome` and `FCadenceArcActionCompletionOutcome` through getters. Submit starts a request only in the `RequestProduced` branch; completion checks `HasNextActionRequest`. Demo logging and invalid duplicate enum redirects have been corrected. On 2026-09-09 the cold editor build and 31/31 automated tests passed, and the user reported both Blueprint API test routes successful. The independent `Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` assets exercise Blueprint access; the C++ executor continues to own real Demo input and lifecycle handling. Historical enum-based Blueprint nodes still require manual migration.
 
 ## Demo and Time Contract
 

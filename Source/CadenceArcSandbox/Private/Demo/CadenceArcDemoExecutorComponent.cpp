@@ -123,8 +123,17 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 	FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(
 		RequestId, GetWorld()->GetTimeSeconds()
 	);
+
+	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
+	{
+		Debug::Print(FString::Printf(
+			TEXT("Action completion handshake failed, Consuming not attempted. Request Id: %lld, Result: %s"),
+			RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
+		return;
+	}
+
 	Debug::Print(FString::Printf(
-		TEXT("Completion callback result. Request Id: "
+		TEXT("Action completed successfully. Request Id: "
 			"%lld, Completion time: %f, Handshake Result: %s, Resolution Category: %s, Resolution Reason: %s"
 		),
 		RequestId,
@@ -134,18 +143,6 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 		*UEnum::GetValueAsString(Outcome.GetBufferConsumptionReason())
 	));
 
-	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
-	{
-		Debug::Print(FString::Printf(
-			TEXT("Action completion handshake failed. Request Id: %lld, Result: %s"),
-			RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
-		return;
-	}
-
-	Debug::Print(FString::Printf(
-		TEXT("Action completed successfully. Request Id: %lld"),
-		RequestId
-	));
 
 	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
 	if (Outcome.HasNextActionRequest())
@@ -176,16 +173,12 @@ void UCadenceArcDemoExecutorComponent::SubmitInput(const FGameplayTag& InputTag)
 	}
 	const FCadenceArcInputEvent InputEvent = {.InputTag = InputTag, .TimestampSeconds = GetWorld()->GetTimeSeconds()};
 	const FCadenceArcSubmitOutcome SubmitOutcome = Resolver->SubmitInput(InputEvent);
-	Debug::Print(FString::Printf(TEXT("Request Produced for Input: %s"), *InputTag.ToString()));
-	if (SubmitOutcome.HasActionRequest())
-	{
-		StartRequest(SubmitOutcome.GetActionRequest());
-	}
 	switch (SubmitOutcome.GetCategory())
 	{
 	case ECadenceArcResolutionCategory::RequestProduced:
 		Debug::Print(FString::Printf(
 			TEXT("Request Produced for Input: %s"), *InputTag.ToString()));
+		StartRequest(SubmitOutcome.GetActionRequest());
 		break;
 	case ECadenceArcResolutionCategory::Buffered:
 		Debug::Print(FString::Printf(TEXT("Input buffered: %s"), *InputTag.ToString()));
