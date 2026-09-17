@@ -19,60 +19,32 @@ The repositories have separate histories:
 
 The Sandbox records a specific CadenceArc commit through its submodule pointer.
 
-## Current Status
+## What the Sandbox Provides
 
-Phase 1 established deterministic graph resolution:
+- a playable demo that drives CadenceArc with real Enhanced Input and a temporary Timer-based executor;
+- test graphs, Gameplay Tags, and Blueprint test assets for the plugin's public API;
+- a PowerShell test runner for the plugin's automation suite.
 
-```text
-InputTag -> graph transition -> ActionTag
-```
-
-Phase 2 replaced immediate state mutation with an asynchronous action handshake:
-
-```text
-InputTag
-  -> ActionRequest
-  -> external acceptance or rejection
-  -> Started commits the target action
-  -> Completed / Cancelled / Interrupted
-```
-
-Phase 3 added an externally controlled, RequestId-protected input window and a Last Input Wins single-slot buffer:
-
-```text
-Executing action
-  -> open buffer window
-  -> cache the latest semantic input
-  -> action completes
-  -> resolve the cached input
-  -> emit the next ActionRequest
-```
-
-Phase 4 connected Enhanced Input to a Demo Character and a Timer-driven Demo Executor. Phase 5 added caller-supplied input/completion timestamps and optional graph-wide buffered-input expiry. Editor graph validation now catches invalid configuration before play.
-
-The current editor suite contains 31 Unreal Automation Tests: 25 resolver tests and 6 graph-validation groups. The plugin descriptor still reports `0.3.0-alpha`; its development API has advanced beyond the original release contract. Animation, GAS, collision, and damage remain outside the framework core.
-
-The C++ Demo reads `FCadenceArcSubmitOutcome` and `FCadenceArcActionCompletionOutcome` through getters. Submit starts a request only in the `RequestProduced` branch; completion checks `HasNextActionRequest`. Demo logging and invalid duplicate enum redirects have been corrected. On 2026-09-09 the cold editor build and 31/31 automated tests passed, and the user reported both Blueprint API test routes successful. The independent `Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` assets exercise Blueprint access; the C++ executor continues to own real Demo input and lifecycle handling. Historical enum-based Blueprint nodes still require manual migration.
+Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.md).
 
 ## Demo and Time Contract
 
-The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`, then forwards them to `UCadenceArcDemoExecutorComponent`.
+The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig` and forwards them to `UCadenceArcDemoExecutorComponent`.
 
-The Demo Executor creates an `FCadenceArcInputEvent` with the input tag and `GetWorld()->GetTimeSeconds()`. It passes the same World game-time domain to `NotifyActionCompleted(RequestId, CompletionTimestampSeconds)`. Time is measured in seconds, follows pause/time dilation, and is not scaled by frame rate in the resolver.
+The Demo Executor stamps each `FCadenceArcInputEvent` with `GetWorld()->GetTimeSeconds()` and passes the same World game time to `NotifyActionCompleted`. Time is measured in seconds and follows pause and time dilation. Timers and all World access stay in the Sandbox; the plugin runtime never reads engine time.
 
-`DA_TestComboGraph` supplies the demo graph. Its `MaxBufferedInputAgeSeconds` is a finite, nonnegative value: `0` disables expiry; a positive value limits the age of the last buffered event at completion. Expiry preserves the completed action node and returns the resolver to `Ready` without starting a new request.
+`DA_TestComboGraph` supplies the demo graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
 
-`LogCadenceArcDemo` writes debug messages to the Output Log and `Saved/Logs/CadenceArcSandbox.log`, alongside screen messages. Completion messages include the completion time and separate handshake and buffer-consumption results. Timer execution and all World access remain in Sandbox.
+`LogCadenceArcDemo` writes to the Output Log and `Saved/Logs/CadenceArcSandbox.log` alongside on-screen messages. Completion messages report the handshake result and, only when it succeeds, the buffer-consumption result.
 
-## Manual Acceptance
+`Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` exercise the plugin's Blueprint API with their own resolver, independently of the C++ demo executor.
 
-Use Unreal's asset validation on a valid combo graph and an intentionally invalid copy. Keep the invalid copy separate from the active demo graph. Verify that errors identify invalid configuration and that a restored valid graph passes.
+## Manual Checks
 
-PIE smoke checks confirm real input, window handling, continuation, and readable results. Exact expiry boundaries, invalid time, and Last Input Wins are covered by deterministic automation; manual subsecond timing is not an acceptance requirement.
+- **Asset validation:** run Unreal's data validation on a valid combo graph and on a separate, intentionally broken copy. Errors should identify the invalid configuration; the valid graph should pass.
+- **PIE smoke test:** confirm real input, window handling, combo continuation, and readable log output.
 
-For an easy visual expiry demonstration, optionally set action duration to 6 seconds, the buffer window to 1-5 seconds, and MaxAge to 2 seconds. An input near the beginning of the window expires; one near the end remains valid. These are suggested demonstration settings, not the component defaults. No frame-perfect input or repeat of automated boundary tests is needed.
-
-The user reported the editor/PIE acceptance checks as normal on 2026-09-08. This records human integration feedback; the automation result is separate evidence.
+Exact expiry boundaries, invalid time, and Last Input Wins are covered by automated tests; manual subsecond timing is not required. For an easy visual expiry demo, set action duration to 6 s, the buffer window to 1-5 s, and MaxAge to 2 s: an input early in the window expires, one near its end does not.
 
 ## Getting Started
 
