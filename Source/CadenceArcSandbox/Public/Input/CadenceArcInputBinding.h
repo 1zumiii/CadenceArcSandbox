@@ -4,37 +4,58 @@
 
 namespace CadenceArc::Demo::Input
 {
-	template <typename UserObject, typename CallbackFunc>
+	template <
+		typename UserClass,
+		typename StartedCallback,
+		typename CompletedCallback,
+		typename CanceledCallback>
 	void BindComboInputActions(
 		UEnhancedInputComponent* InputComponent,
 		const UCadenceArcInputConfig* InputConfig,
-		UserObject* ContextObject,
-		CallbackFunc Callback)
+		UserClass* ContextObject,
+		StartedCallback OnStarted,
+		CompletedCallback OnCompleted,
+		CanceledCallback OnCanceled)
 	{
-		checkf(
-			InputComponent,
-			TEXT("Enhanced Input Component is null")
-		);
+		check(InputComponent);
+		check(InputConfig);
+		check(ContextObject);
 
-		checkf(
-			InputConfig,
-			TEXT("CadenceArc Input Config is null")
-		);
-		for (const FCadenceArcInputActionConfig& ActionConfig : InputConfig->ComboInputActions)
+		for (const FCadenceArcInputActionConfig& Config
+		     : InputConfig->ComboInputActions)
 		{
-			if (!ActionConfig.IsValid())
+			if (!Config.IsValid())
 			{
-				UE_LOG(LogTemp, Warning, TEXT("Invalid input action config: %s"), *ActionConfig.InputTag.ToString());
+				UE_LOG(
+					LogTemp, Warning,
+					TEXT("Invalid input action config: %s"),
+					*Config.InputTag.ToString());
 				continue;
 			}
 
 			InputComponent->BindAction(
-				ActionConfig.InputAction,
+				Config.InputAction,
 				ETriggerEvent::Started,
 				ContextObject,
-				Callback,
-				ActionConfig.InputTag
-			);
+				OnStarted,
+				Config.InputTag,
+				Config.InputMode);
+
+			InputComponent->BindAction(
+				Config.InputAction,
+				ETriggerEvent::Completed,
+				ContextObject,
+				OnCompleted,
+				Config.InputTag,
+				Config.InputMode);
+
+			InputComponent->BindAction(
+				Config.InputAction,
+				ETriggerEvent::Canceled,
+				ContextObject,
+				OnCanceled,
+				Config.InputTag,
+				Config.InputMode);
 		}
 	}
 }

@@ -62,7 +62,9 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		EnhancedInputComponent,
 		InputConfig,
 		this,
-		&ACadenceArcDemoCharacter::Input_CadenceArcAction
+		&ACadenceArcDemoCharacter::Input_CadenceArcStarted,
+		&ACadenceArcDemoCharacter::Input_CadenceArcCompleted,
+		&ACadenceArcDemoCharacter::Input_CadenceArcCanceled
 	);
 
 	if (InputConfig->ResetInputAction)
@@ -76,11 +78,27 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 }
 
-void ACadenceArcDemoCharacter::Input_CadenceArcAction(const FGameplayTag InputTag)
+void ACadenceArcDemoCharacter::Input_CadenceArcStarted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
 {
 	if (IsValid(DemoExecutor))
 	{
-		DemoExecutor->SubmitInput(InputTag);
+		DemoExecutor->PressInput(InputTag, Mode);
+	}
+}
+
+void ACadenceArcDemoCharacter::Input_CadenceArcCompleted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
+{
+	if (IsValid(DemoExecutor))
+	{
+		DemoExecutor->ReleaseInput(InputTag);
+	}
+}
+
+void ACadenceArcDemoCharacter::Input_CadenceArcCanceled(FGameplayTag InputTag, ECadenceArcInputMode Mode)
+{
+	if (IsValid(DemoExecutor))
+	{
+		DemoExecutor->CancelInput(InputTag);
 	}
 }
 

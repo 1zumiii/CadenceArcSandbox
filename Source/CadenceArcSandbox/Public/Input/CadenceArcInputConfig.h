@@ -3,7 +3,9 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "GameplayTagContainer.h"
+#include "Input/CadenceArcInputTypes.h"
 #include "CadenceArcInputConfig.generated.h"
+
 
 class UInputMappingContext;
 class UInputAction;
@@ -20,9 +22,13 @@ struct CADENCEARCSANDBOX_API FCadenceArcInputActionConfig
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
 	TObjectPtr<UInputAction> InputAction;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
+	ECadenceArcInputMode InputMode = ECadenceArcInputMode::PressOnly;
+
 	bool IsValid() const
 	{
-		return InputTag.IsValid() && InputAction != nullptr;
+		return InputTag.IsValid() && InputAction != nullptr
+			&& (InputMode == ECadenceArcInputMode::PressOnly || InputMode == ECadenceArcInputMode::HoldRelease);
 	}
 };
 

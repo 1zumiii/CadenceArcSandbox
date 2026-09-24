@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Graph/CadenceArcGraph.h"
+#include "Input/CadenceArcHoldInputRouter.h"
 #include "Resolver/CadenceArcResolver.h"
 #include "CadenceArcDemoExecutorComponent.generated.h"
 
@@ -31,6 +32,8 @@ class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComp
 	FTimerHandle BufferCloseTimerHandle;
 	FTimerHandle ActionCompleteTimerHandle;
 
+	TUniquePtr<FCadenceArcHoldInputRouter> InputRouter;
+
 	// Helper Functions
 	void StartRequest(const FCadenceArcActionRequest& Request);
 	void HandleOpenBufferWindow(const int64 RequestId) const;
@@ -43,12 +46,27 @@ public:
 	UCadenceArcDemoExecutorComponent();
 
 	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
-	void SubmitInput(const FGameplayTag& InputTag);
-
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
 	void ResetCombo();
+	
+	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
+	void PressInput(
+		const FGameplayTag& InputTag,
+		ECadenceArcInputMode Mode
+	);
+	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
+	void ReleaseInput(const FGameplayTag& InputTag);
+	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
+	void CancelInput(const FGameplayTag& InputTag);
+
+	virtual void TickComponent(
+		float DeltaTime, ELevelTick TickType,
+		FActorComponentTickFunction* ThisTickFunction
+	) override;
+	
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 protected:
 	// Called when the game starts
 	virtual void BeginPlay() override;
+	
 };

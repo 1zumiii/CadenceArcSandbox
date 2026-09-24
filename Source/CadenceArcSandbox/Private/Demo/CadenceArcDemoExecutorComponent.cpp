@@ -120,10 +120,11 @@ void UCadenceArcDemoExecutorComponent::HandleCloseBufferWindow(const int64 Reque
 
 void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 RequestId)
 {
-	FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(
-		RequestId, GetWorld()->GetTimeSeconds()
+	const double Now = GetWorld()->GetTimeSeconds();
+	InputRouter->Advance(Now,
+	                     [this](const FCadenceArcActionRequest& R) { StartRequest(R); }
 	);
-
+	const FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(RequestId, Now);
 	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
 	{
 		Debug::Print(FString::Printf(
@@ -142,6 +143,7 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 		*UEnum::GetValueAsString(Outcome.GetBufferConsumption()),
 		*UEnum::GetValueAsString(Outcome.GetBufferConsumptionReason())
 	));
+	// 后面的日志和 HasNextActionRequest 处理保持不变
 
 
 	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
@@ -161,38 +163,7 @@ void UCadenceArcDemoExecutorComponent::ClearExecutionTimers()
 // Sets default values for this component's properties
 UCadenceArcDemoExecutorComponent::UCadenceArcDemoExecutorComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
-}
-
-void UCadenceArcDemoExecutorComponent::SubmitInput(const FGameplayTag& InputTag)
-{
-	if (!IsValid(Resolver))
-	{
-		Debug::Print(TEXT("Resolver is not valid. Cannot submit input."));
-		return;
-	}
-	const FCadenceArcInputEvent InputEvent = {.InputTag = InputTag, .TimestampSeconds = GetWorld()->GetTimeSeconds()};
-	const FCadenceArcSubmitOutcome SubmitOutcome = Resolver->SubmitInput(InputEvent);
-	switch (SubmitOutcome.GetCategory())
-	{
-	case ECadenceArcResolutionCategory::RequestProduced:
-		Debug::Print(FString::Printf(
-			TEXT("Request Produced for Input: %s"), *InputTag.ToString()));
-		StartRequest(SubmitOutcome.GetActionRequest());
-		break;
-	case ECadenceArcResolutionCategory::Buffered:
-		Debug::Print(FString::Printf(TEXT("Input buffered: %s"), *InputTag.ToString()));
-		break;
-	case ECadenceArcResolutionCategory::NoAction:
-		Debug::Print(FString::Printf(
-				TEXT("Input ignored: %s, Reason: %s"), *InputTag.ToString(),
-				*UEnum::GetValueAsString(SubmitOutcome.GetReason()))
-		);
-		break;
-	default:
-		Debug::Print(FString::Printf(TEXT("Input rejected: %s"), *UEnum::GetValueAsString(SubmitOutcome.GetReason())));
-		break;
-	}
+	PrimaryComponentTick.bCanEverTick = true;
 }
 
 void UCadenceArcDemoExecutorComponent::ResetCombo()
@@ -204,6 +175,72 @@ void UCadenceArcDemoExecutorComponent::ResetCombo()
 	}
 }
 
+void UCadenceArcDemoExecutorComponent::PressInput(const FGameplayTag& InputTag, ECadenceArcInputMode Mode)
+{
+	UWorld* World = GetWorld();
+	if (!InputRouter || !World)
+	{
+		return;
+	}
+
+	const double Now = World->GetTimeSeconds();
+	InputRouter->Press(
+		InputTag, Mode, Now,
+		[this](const FCadenceArcActionRequest& Request)
+		{
+			StartRequest(Request);
+		}
+	);
+}
+
+void UCadenceArcDemoExecutorComponent::ReleaseInput(const FGameplayTag& InputTag)
+{
+	UWorld* World = GetWorld();
+	if (!InputRouter || !World)
+	{
+		return;
+	}
+
+	const double Now = World->GetTimeSeconds();
+	InputRouter->Release(
+		InputTag, Now,
+		[this](const FCadenceArcActionRequest& Request)
+		{
+			StartRequest(Request);
+		}
+	);
+}
+
+void UCadenceArcDemoExecutorComponent::CancelInput(const FGameplayTag& InputTag)
+{
+	UWorld* World = GetWorld();
+	if (!InputRouter || !World)
+	{
+		return;
+	}
+
+	const double Now = World->GetTimeSeconds();
+	InputRouter->Cancel(InputTag);
+}
+
+void UCadenceArcDemoExecutorComponent::TickComponent(
+	float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction
+)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!IsValid(Resolver)) { return; }
+	InputRouter->Advance(GetWorld()->GetTimeSeconds(),
+	                     [this](const FCadenceArcActionRequest& R) { StartRequest(R); }
+	);
+}
+
+void UCadenceArcDemoExecutorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Super::EndPlay(EndPlayReason);
+	InputRouter->CancelAll();
+	ClearExecutionTimers();
+}
+
 
 // Called when the game starts
 void UCadenceArcDemoExecutorComponent::BeginPlay()
@@ -212,6 +249,15 @@ void UCadenceArcDemoExecutorComponent::BeginPlay()
 	if (!IsValid(ComboGraph)) { return; }
 	Resolver = NewObject<UCadenceArcResolver>(this);
 	const ECadenceArcResolverInitResult ResolverInitResult = Resolver->Initialize(ComboGraph);
+	if (ResolverInitResult == ECadenceArcResolverInitResult::Success)
+	{
+		InputRouter = MakeUnique<FCadenceArcHoldInputRouter>(Resolver);
+	}
+	else
+	{
+		Debug::Print(FString::Printf(
+			TEXT("Failed to initialize Resolver. Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)));
+	}
 	Debug::Print(FString::Printf(TEXT("Resolver Init Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)));
 	Debug::Print(FString::Printf(TEXT("Current Action Tag: %s"), *Resolver->GetCurrentActionTag().ToString()));
 }
