@@ -21,19 +21,29 @@ The Sandbox records a specific CadenceArc commit through its submodule pointer.
 
 ## What the Sandbox Provides
 
-- a playable demo that drives CadenceArc with real Enhanced Input and a temporary Timer-based executor;
+- a playable demo that drives CadenceArc with real Enhanced Input and a temporary Timer-based executor, including press/release Hold input;
+- `FCadenceArcHoldInputRouter`, a World-independent host adapter that pairs physical presses and releases and feeds them to the resolver;
 - test graphs, Gameplay Tags, and Blueprint test assets for the plugin's public API;
-- a PowerShell test runner for the plugin's automation suite.
+- a PowerShell test runner for the plugin's automation suite and the Sandbox's own router tests.
 
 Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.md).
 
 ## Demo and Time Contract
 
-The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig` and forwards them to `UCadenceArcDemoExecutorComponent`.
+The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`. Each action binds `Started`, `Completed`, and `Canceled`, carrying its tag and `InputMode`, and forwards them to `UCadenceArcDemoExecutorComponent` as press, release, and cancel. A tag mapped by more than one action is skipped with a warning, because the router pairs presses by tag.
 
-The Demo Executor stamps each `FCadenceArcInputEvent` with `GetWorld()->GetTimeSeconds()` and passes the same World game time to `NotifyActionCompleted`. Time is measured in seconds and follows pause and time dilation. Timers and all World access stay in the Sandbox; the plugin runtime never reads engine time.
+`InputMode` selects how a key reaches the resolver: `PressOnly` submits on press, and `HoldRelease` requests a hold qualification on press and settles on release or automatic release. The node you are on must have `Released` transitions for every `HoldRelease` tag; otherwise the press is rejected with `NoMatchingTransition` and nothing happens.
 
-`DA_TestComboGraph` supplies the demo graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
+The executor owns an `FCadenceArcHoldInputRouter`, which holds the input tracker and a tag-to-press table. Every call with a timestamp first advances resolver time and starts any request that produces, then handles the input. The component reads `GetWorld()->GetTimeSeconds()` once per callback: every tick advances time, and action completion advances with the same timestamp it passes to `NotifyActionCompleted`. Time is measured in seconds and follows pause and time dilation. Timers and all World access stay in the Sandbox; the plugin runtime never reads engine time. `EndPlay` cancels tracked inputs without synthesizing releases.
+
+Demo assets:
+
+- `DA_CadenceArcInputConfig` -- both keys `PressOnly`;
+- `DA_CadenceArcInputConfigHeavyHoldRelease` -- Light `PressOnly`, Heavy `HoldRelease`;
+- `DA_TestComboGraph` -- the original press-only graph;
+- `DA_TestComboGraphAutoRelease` and `DA_TestComboGraphMaxRelease` -- Hold graphs with a charge start of 0.2 s, a full charge of 0.8 s, and zero or positive maximum hold.
+
+The character blueprint selects the input config and graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
 
 `LogCadenceArcDemo` writes to the Output Log and `Saved/Logs/CadenceArcSandbox.log` alongside on-screen messages. Completion messages report the handshake result and, only when it succeeds, the buffer-consumption result.
 
@@ -43,6 +53,9 @@ The Demo Executor stamps each `FCadenceArcInputEvent` with `GetWorld()->GetTimeS
 
 - **Asset validation:** run Unreal's data validation on a valid combo graph and on a separate, intentionally broken copy. Errors should identify the invalid configuration; the valid graph should pass.
 - **PIE smoke test:** confirm real input, window handling, combo continuation, and readable log output.
+- **Hold smoke test:** with the Heavy `HoldRelease` config, a short press gives the tap tier and a full charge gives the charged tier; with zero maximum hold the charged attack fires on its own and the later physical release does nothing.
+
+The demo logs started actions and completion results but is silent when the router rejects an input. Rich runtime inspection is planned for the Phase 7 debugger.
 
 Exact expiry boundaries, invalid time, and Last Input Wins are covered by automated tests; manual subsecond timing is not required. For an easy visual expiry demo, set action duration to 6 s, the buffer window to 1-5 s, and MaxAge to 2 s: an input early in the window expires, one near its end does not.
 

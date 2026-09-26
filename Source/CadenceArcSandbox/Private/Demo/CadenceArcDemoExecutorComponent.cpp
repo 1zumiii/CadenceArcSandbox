@@ -228,7 +228,7 @@ void UCadenceArcDemoExecutorComponent::TickComponent(
 )
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!IsValid(Resolver)) { return; }
+	if (!IsValid(Resolver) || InputRouter == nullptr) { return; }
 	InputRouter->Advance(GetWorld()->GetTimeSeconds(),
 	                     [this](const FCadenceArcActionRequest& R) { StartRequest(R); }
 	);
@@ -236,9 +236,14 @@ void UCadenceArcDemoExecutorComponent::TickComponent(
 
 void UCadenceArcDemoExecutorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	Super::EndPlay(EndPlayReason);
+	if (InputRouter == nullptr || !IsValid(Resolver))
+	{
+		Super::EndPlay(EndPlayReason);
+		return;
+	}
 	InputRouter->CancelAll();
 	ClearExecutionTimers();
+	Super::EndPlay(EndPlayReason);
 }
 
 

@@ -20,9 +20,9 @@ namespace CadenceArc::Demo::Input
 		check(InputComponent);
 		check(InputConfig);
 		check(ContextObject);
-
-		for (const FCadenceArcInputActionConfig& Config
-		     : InputConfig->ComboInputActions)
+		
+		TSet<FGameplayTag> UniqueTags;
+		for (const FCadenceArcInputActionConfig& Config : InputConfig->ComboInputActions)
 		{
 			if (!Config.IsValid())
 			{
@@ -32,6 +32,16 @@ namespace CadenceArc::Demo::Input
 					*Config.InputTag.ToString());
 				continue;
 			}
+			// 检查ComboInputActions内是否存在重复的InputTag
+			if (UniqueTags.Contains(Config.InputTag))
+			{
+				UE_LOG(
+					LogTemp, Warning,
+					TEXT("Duplicate input tag found in ComboInputActions: %s"),
+					*Config.InputTag.ToString());
+				continue;
+			}
+			UniqueTags.Add(Config.InputTag);
 
 			InputComponent->BindAction(
 				Config.InputAction,
