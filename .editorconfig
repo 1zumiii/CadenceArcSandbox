@@ -1,0 +1,5 @@
+# Rider / ReSharper C++ 格式化覆盖。只放与 IDE 默认值不同的项。
+
+[*.{h,cpp,inl}]
+# 链式调用（Slate 的 SNew(...).Attr().Attr()）续行只缩进一级，不对齐到首行的某一列
+resharper_cpp_align_multiline_calls_chain = false
