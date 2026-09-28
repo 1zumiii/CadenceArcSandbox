@@ -3,3 +3,5 @@
 [*.{h,cpp,inl}]
 # 链式调用（Slate 的 SNew(...).Attr().Attr()）续行只缩进一级，不对齐到首行的某一列
 resharper_cpp_align_multiline_calls_chain = false
+# 多行 ?: 的续行（以及其中的 lambda 体）只缩进一级，不对齐到 = 右侧的起始列
+resharper_cpp_align_ternary = none
