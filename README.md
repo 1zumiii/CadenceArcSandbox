@@ -41,11 +41,14 @@ Demo assets:
 - `DA_CadenceArcInputConfig` -- both keys `PressOnly`;
 - `DA_CadenceArcInputConfigHeavyHoldRelease` -- Light `PressOnly`, Heavy `HoldRelease`;
 - `DA_TestComboGraph` -- the original press-only graph;
-- `DA_TestComboGraphAutoRelease` and `DA_TestComboGraphMaxRelease` -- Hold graphs with a charge start of 0.2 s, a full charge of 0.8 s, and zero or positive maximum hold.
+- `DA_TestComboGraphAutoRelease` and `DA_TestComboGraphMaxRelease` -- Hold graphs with a charge start of 0.2 s, a full charge of 0.8 s, and zero or positive maximum hold;
+- `DA_TestComboGraphCombo` -- a realistic Light/Heavy combo with shared finishers, charge tiers, and a loop back to the first skill;
+- `DA_TestComboGraphTree` -- a wide branching tree (27 nodes, five levels, no merges) for checking the debugger layout;
+- `DA_TestComboGraphStress` -- a dense graph for layout stress testing.
 
 The character blueprint selects the input config and graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
 
-`LogCadenceArcDemo` writes to the Output Log and `Saved/Logs/CadenceArcSandbox.log` alongside on-screen messages. Completion messages report the handshake result and, only when it succeeds, the buffer-consumption result.
+Every resolver call and its outcome is visible in the editor's **Arc Debugger** and **Arc History** tabs (**Tools > Debug**); see the [plugin's Runtime Debugger section](https://github.com/1zumiii/CadenceArc#runtime-debugger-phase-7) for screenshots. The demo therefore prints only problems the resolver cannot see, in red on screen: an invalid executor timing configuration, a missing resolver or World, and a failed resolver initialization (such a resolver never appears in the debugger). Handshake failures, debug-scenario rejections, and failed time advances are written to `LogCadenceArcDemo` as warnings only (Output Log and `Saved/Logs/CadenceArcSandbox.log`).
 
 `Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` exercise the plugin's Blueprint API with their own resolver, independently of the C++ demo executor.
 
@@ -54,8 +57,7 @@ The character blueprint selects the input config and graph. `MaxBufferedInputAge
 - **Asset validation:** run Unreal's data validation on a valid combo graph and on a separate, intentionally broken copy. Errors should identify the invalid configuration; the valid graph should pass.
 - **PIE smoke test:** confirm real input, window handling, combo continuation, and readable log output.
 - **Hold smoke test:** with the Heavy `HoldRelease` config, a short press gives the tap tier and a full charge gives the charged tier; with zero maximum hold the charged attack fires on its own and the later physical release does nothing.
-
-The demo logs started actions and completion results but is silent when the router rejects an input. Rich runtime inspection is planned for the Phase 7 debugger.
+- **Debugger smoke test:** open Arc Debugger and Arc History, select the PIE resolver, and play a combo. The committed node, candidate, preparatory edges, and history rows should follow the input; a rejected input should appear as a red history row with its reason.
 
 Exact expiry boundaries, invalid time, and Last Input Wins are covered by automated tests; manual subsecond timing is not required. For an easy visual expiry demo, set action duration to 6 s, the buffer window to 1-5 s, and MaxAge to 2 s: an input early in the window expires, one near its end does not.
 

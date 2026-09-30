@@ -30,7 +30,7 @@ void FCadenceArcHoldInputRouter::Press(
 	// 先推进，处理截至至Now已经到期的长按事件，如果没有调用，Resolver内部可能还仍然保存着旧的待松手资格
 	if (!AdvanceAndDispatch(Now, StartRequest))
 	{
-		Debug::Print(TEXT("AdvanceAndDispatch failed during Press."));
+		Debug::Warn(TEXT("AdvanceAndDispatch failed during Press."));
 	}
 	const FCadenceArcInputTrackingOutcome Pressed = Tracker->Press(Tag, Now);
 	if (Pressed.GetResult() != ECadenceArcInputTrackingResult::PressedProduced)
@@ -64,7 +64,7 @@ void FCadenceArcHoldInputRouter::Release(const FGameplayTag& Tag, double Now, FS
 	// 之后每次 Press 都返回 AlreadyPressed
 	if (!AdvanceAndDispatch(Now, StartRequest))
 	{
-		Debug::Print(TEXT("AdvanceAndDispatch failed during Release."));
+		Debug::Warn(TEXT("AdvanceAndDispatch failed during Release."));
 	}
 	FTrackedPress* FoundPress = PressedByTag.Find(Tag);
 	if (!FoundPress) { return; }

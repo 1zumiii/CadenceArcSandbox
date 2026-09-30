@@ -7,7 +7,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 {
 	if (!IsValid(Resolver))
 	{
-		Debug::Print(TEXT("Resolver is not valid. Cannot start request."));
+		Debug::Print(TEXT("Resolver is not valid. Cannot start request."), FColor::Red, 5.f);
 		return;
 	}
 
@@ -17,14 +17,14 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 			TEXT("Invalid timing configuration. BufferOpenDelay: %f, BufferCloseDelay: %f, ActionDuration: %f"),
 			BufferOpenDelay,
 			BufferCloseDelay,
-			ActionDuration));
+			ActionDuration), FColor::Red, 5.f);
 		Resolver->NotifyActionRejected(Request.RequestId);
 		return;
 	}
 
 	if (!IsValid(GetWorld()))
 	{
-		Debug::Print(TEXT("World is not valid. Cannot start request."));
+		Debug::Print(TEXT("World is not valid. Cannot start request."), FColor::Red, 5.f);
 		Resolver->NotifyActionRejected(Request.RequestId);
 		return;
 	}
@@ -62,7 +62,7 @@ void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionReq
 	++RequestCounter;
 	if (RejectEveryNthRequest > 0 && RequestCounter % RejectEveryNthRequest == 0)
 	{
-		Debug::Print(FString::Printf(TEXT("Executor rejected request %lld (debug scenario)."), Request.RequestId));
+		Debug::Warn(FString::Printf(TEXT("Executor rejected request %lld (debug scenario)."), Request.RequestId));
 		Resolver->NotifyActionRejected(Request.RequestId);
 		return;
 	}
@@ -70,7 +70,7 @@ void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionReq
 	const ECadenceArcHandshakeResult HandshakeResult = Resolver->NotifyActionStarted(Request.RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Print(FString::Printf(
+		Debug::Warn(FString::Printf(
 			TEXT("Failed to start action. Request Id: %lld, Source: %s, Target: %s, Result: %s"),
 			Request.RequestId,
 			*Request.SourceActionTag.ToString(),
@@ -118,12 +118,6 @@ void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionReq
 		ActionDuration * TimeScale,
 		false
 	);
-	Debug::Print(FString::Printf(
-		TEXT("Action started. Request Id: %lld, Source: %s, Target: %s"),
-		Request.RequestId,
-		*Request.SourceActionTag.ToString(),
-		*Request.TargetActionTag.ToString()
-	));
 }
 
 void UCadenceArcDemoExecutorComponent::HandleOpenBufferWindow(const int64 RequestId) const
@@ -131,14 +125,9 @@ void UCadenceArcDemoExecutorComponent::HandleOpenBufferWindow(const int64 Reques
 	ECadenceArcHandshakeResult HandshakeResult = Resolver->OpenBufferWindow(RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Print(FString::Printf(
+		Debug::Warn(FString::Printf(
 			TEXT("Failed to open buffer window. Request Id: %lld, Result: %s"),
 			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
-	}
-	else
-	{
-		Debug::Print(FString::Printf(
-			TEXT("Buffer window opened. Request Id: %lld"), RequestId));
 	}
 }
 
@@ -147,14 +136,9 @@ void UCadenceArcDemoExecutorComponent::HandleCloseBufferWindow(const int64 Reque
 	const ECadenceArcHandshakeResult HandshakeResult = Resolver->CloseBufferWindow(RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Print(FString::Printf(
+		Debug::Warn(FString::Printf(
 			TEXT("Failed to close buffer window. Request Id: %lld, Result: %s"),
 			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
-	}
-	else
-	{
-		Debug::Print(FString::Printf(
-			TEXT("Buffer window closed. Request Id: %lld"), RequestId));
 	}
 }
 
@@ -167,24 +151,11 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 	const FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(RequestId, Now);
 	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Print(FString::Printf(
+		Debug::Warn(FString::Printf(
 			TEXT("Action completion handshake failed, Consuming not attempted. Request Id: %lld, Result: %s"),
 			RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
 		return;
 	}
-
-	Debug::Print(FString::Printf(
-		TEXT("Action completed successfully. Request Id: "
-			"%lld, Completion time: %f, Handshake Result: %s, Resolution Category: %s, Resolution Reason: %s"
-		),
-		RequestId,
-		GetWorld()->GetTimeSeconds(),
-		*UEnum::GetValueAsString(Outcome.GetHandshakeResult()),
-		*UEnum::GetValueAsString(Outcome.GetBufferConsumption()),
-		*UEnum::GetValueAsString(Outcome.GetBufferConsumptionReason())
-	));
-	// 后面的日志和 HasNextActionRequest 处理保持不变
-
 
 	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
 	if (Outcome.HasNextActionRequest())
@@ -216,10 +187,9 @@ UCadenceArcDemoExecutorComponent::UCadenceArcDemoExecutorComponent()
 
 void UCadenceArcDemoExecutorComponent::ResetCombo()
 {
-	if (IsValid(Resolver) && Resolver->Reset() == ECadenceArcResolverResetResult::Success)
+	if (IsValid(Resolver))
 	{
-		Debug::Print(
-			FString::Printf(TEXT("Combo reset. Current Action Tag: %s"), *Resolver->GetCurrentActionTag().ToString()));
+		Resolver->Reset(); // 结果记在 Arc History 里
 	}
 }
 
@@ -309,8 +279,6 @@ void UCadenceArcDemoExecutorComponent::BeginPlay()
 	else
 	{
 		Debug::Print(FString::Printf(
-			TEXT("Failed to initialize Resolver. Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)));
+			TEXT("Failed to initialize Resolver. Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)), FColor::Red, 10.f);
 	}
-	Debug::Print(FString::Printf(TEXT("Resolver Init Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)));
-	Debug::Print(FString::Printf(TEXT("Current Action Tag: %s"), *Resolver->GetCurrentActionTag().ToString()));
 }
