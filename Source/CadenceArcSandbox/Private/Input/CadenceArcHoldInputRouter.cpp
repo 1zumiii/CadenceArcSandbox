@@ -80,6 +80,13 @@ void FCadenceArcHoldInputRouter::Release(const FGameplayTag& Tag, double Now, FS
 	case ECadenceArcInputMode::PressOnly:
 		break;
 	case ECadenceArcInputMode::HoldRelease:
+		// 资格可能早已结束：按下时就被拒绝、已经自动释放、被其他输入替换或被取消。
+		// 这时物理松手只结束 Tracker 配对，不再调用 ReleaseInputHold；否则调试历史里会多出一条无意义的失败。
+		const FCadenceArcHoldSnapshot Hold = R->GetInputHoldSnapshot();
+		if (!Hold.bHasHold || !(Hold.Token == Press.Token))
+		{
+			break;
+		}
 		FCadenceArcInputAdvanceOutcome Outcome = Resolver->ReleaseInputHold(
 			Press.Token, ReleaseOutcome.GetInputEvent()
 		);

@@ -4,7 +4,8 @@
 // - 每个带 Now 的调用都先 AdvanceInputTime(Now) 并把产生的请求交给 StartRequest，再处理本次输入。
 // - Press：Tracker 产生新按下才记录 Tag -> {Token, Mode}；PressOnly 送 SubmitInput，HoldRelease 送
 //   BeginInputHold。Begin 被拒绝时仍保留物理按住记录，直到真实松手或取消；重复按下被忽略。
-// - Release：按记录的 Token 结束 Tracker 配对；HoldRelease 再调 ReleaseInputHold（NoMatchingHold 无副作用）。
+// - Release：按记录的 Token 结束 Tracker 配对；HoldRelease 只在 Resolver 仍持有这个 Token 的按住资格时
+//   调用 ReleaseInputHold。资格已被拒绝、自动释放、替换或取消时只结束配对，不产生无意义的失败调用。
 // - Cancel / CancelAll：取消 Resolver 资格并结束 Tracker 配对，不生成 Released，不产生请求。
 // - Resolver 无效（空指针或已被销毁）时所有调用都是安全的空操作，不调用 StartRequest。
 
@@ -128,6 +129,20 @@ namespace CadenceArc::Sandbox::Tests
 			                          Host.Started[Index].TargetActionTag.ToString(), Expected[Index].ToString());
 		}
 		return bPassed;
+	}
+
+	// 资格已经不在时，物理松手不应再调用 ReleaseInputHold。Resolver 的调试历史只在编辑器构建中存在。
+	static void ExpectNoResolverRelease(FAutomationTestBase& Test, const TCHAR* What, const UCadenceArcResolver* Resolver)
+	{
+#if WITH_EDITOR
+		TArray<FCadenceArcDebugEvent> Events;
+		Resolver->GetDebugHistory().CopyEventsAfter(0, Events);
+		const bool bReleased = Events.ContainsByPredicate([](const FCadenceArcDebugEvent& Event)
+		{
+			return Event.Operation == ECadenceArcDebugOperation::ReleaseHold;
+		});
+		Test.TestFalse(*FString::Printf(TEXT("%s: no ReleaseInputHold reaches the resolver"), What), bReleased);
+#endif
 	}
 
 	static bool ExpectHoldState(
@@ -258,6 +273,7 @@ namespace CadenceArc::Sandbox::Tests
 		Router.Release(Router_Input_Heavy, 2.0, Start);
 		ExpectStartedTargets(*this, TEXT("After auto release"), Host, {Router_Action_HeavyCharged});
 		TestFalse(TEXT("Physical release still ends tracking"), Router.IsTracking(Router_Input_Heavy));
+		ExpectNoResolverRelease(*this, TEXT("After auto release"), Resolver);
 		return !HasAnyErrors();
 	}
 
@@ -311,6 +327,7 @@ namespace CadenceArc::Sandbox::Tests
 		Router.Release(Router_Input_Light, 1.2, Start);
 		TestFalse(TEXT("Release after rejected begin ends tracking"), Router.IsTracking(Router_Input_Light));
 		ExpectStartedTargets(*this, TEXT("Rejected begin"), Host, {});
+		ExpectNoResolverRelease(*this, TEXT("Release after rejected begin"), Resolver);
 
 		// 重复按下被 Tracker 忽略，不会替换已授予的资格
 		Router.Press(Router_Input_Heavy, ECadenceArcInputMode::HoldRelease, 2.0, Start);

@@ -27,6 +27,44 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 		return;
 	}
 
+	// 调试场景：延迟开始。等待期间 Resolver 停在 AwaitingStart，候选在 Arc Debugger 里显示为黄色
+	if (StartDelaySeconds > 0.f)
+	{
+		ClearExecutionTimers();
+		TWeakObjectPtr<UCadenceArcDemoExecutorComponent> WeakThis = this;
+		GetWorld()->GetTimerManager().SetTimer(
+			StartDelayTimerHandle,
+			[WeakThis, Request]()
+			{
+				if (WeakThis.IsValid())
+				{
+					WeakThis->BeginExecution(Request);
+				}
+			},
+			StartDelaySeconds,
+			false
+		);
+		return;
+	}
+	BeginExecution(Request);
+}
+
+void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionRequest& Request)
+{
+	if (!IsValid(Resolver) || !IsValid(GetWorld()))
+	{
+		return;
+	}
+
+	// 调试场景：执行器按节奏拒绝请求（例如资源不足、被硬直），已提交节点保持不变
+	++RequestCounter;
+	if (RejectEveryNthRequest > 0 && RequestCounter % RejectEveryNthRequest == 0)
+	{
+		Debug::Print(FString::Printf(TEXT("Executor rejected request %lld (debug scenario)."), Request.RequestId));
+		Resolver->NotifyActionRejected(Request.RequestId);
+		return;
+	}
+
 	const ECadenceArcHandshakeResult HandshakeResult = Resolver->NotifyActionStarted(Request.RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
@@ -51,7 +89,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 				WeakThis->HandleOpenBufferWindow(CurrentRequestId);
 			}
 		},
-		BufferOpenDelay,
+		BufferOpenDelay * TimeScale,
 		false
 	);
 	GetWorld()->GetTimerManager().SetTimer(
@@ -63,7 +101,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 				WeakThis->HandleCloseBufferWindow(CurrentRequestId);
 			}
 		},
-		BufferCloseDelay,
+		BufferCloseDelay * TimeScale,
 		false
 	);
 	GetWorld()->GetTimerManager().SetTimer(
@@ -75,7 +113,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 				WeakThis->HandleActionCompleted(CurrentRequestId);
 			}
 		},
-		ActionDuration,
+		ActionDuration * TimeScale,
 		false
 	);
 	Debug::Print(FString::Printf(
@@ -151,10 +189,18 @@ void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 Request
 	{
 		StartRequest(Outcome.GetNextActionRequest());
 	}
+
+	// 调试场景：同一个请求再报一次完成。Resolver 会按过期回调拒绝它，不改变任何状态，
+	// 只在 Arc History 里留下一条失败记录
+	if (bSendStaleCallbacks)
+	{
+		Resolver->NotifyActionCompleted(RequestId, GetWorld()->GetTimeSeconds());
+	}
 }
 
 void UCadenceArcDemoExecutorComponent::ClearExecutionTimers()
 {
+	GetWorld()->GetTimerManager().ClearTimer(StartDelayTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(BufferOpenTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(BufferCloseTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(ActionCompleteTimerHandle);
