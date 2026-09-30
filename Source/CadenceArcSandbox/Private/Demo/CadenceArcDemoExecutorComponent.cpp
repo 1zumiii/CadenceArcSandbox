@@ -1,5 +1,7 @@
 #include "Demo/CadenceArcDemoExecutorComponent.h"
 #include "CadenceArcDebugHelper.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
 
 void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionRequest& Request)
 {

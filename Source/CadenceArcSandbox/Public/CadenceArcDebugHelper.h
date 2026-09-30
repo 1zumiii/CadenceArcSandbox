@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "CadenceArcSandbox/CadenceArcSandbox.h"
+#include "Engine/Engine.h"
 
 namespace Debug
 {
