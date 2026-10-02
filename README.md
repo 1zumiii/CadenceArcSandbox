@@ -48,7 +48,7 @@ Demo assets:
 
 The character blueprint selects the input config and graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
 
-Every resolver call and its outcome is visible in the editor's **Arc Debugger** and **Arc History** tabs (**Tools > Debug**); see the [plugin's Runtime Debugger section](https://github.com/1zumiii/CadenceArc#runtime-debugger-phase-7) for screenshots. The demo therefore prints only problems the resolver cannot see, in red on screen: an invalid executor timing configuration, a missing resolver or World, and a failed resolver initialization (such a resolver never appears in the debugger). Handshake failures, debug-scenario rejections, and failed time advances are written to `LogCadenceArcDemo` as warnings only (Output Log and `Saved/Logs/CadenceArcSandbox.log`).
+Every resolver call and its outcome is visible in the editor's **Arc Debugger** and **Arc History** tabs (**Tools > Debug**); see the [plugin's debugger guide](https://github.com/1zumiii/CadenceArc/blob/master/Docs/Debugger.md) for screenshots. The demo therefore prints only problems the resolver cannot see, in red on screen: an invalid executor timing configuration, a missing resolver or World, and a failed resolver initialization (such a resolver never appears in the debugger). Handshake failures, debug-scenario rejections, and failed time advances are written to `LogCadenceArcDemo` as warnings only (Output Log and `Saved/Logs/CadenceArcSandbox.log`).
 
 `Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` exercise the plugin's Blueprint API with their own resolver, independently of the C++ demo executor.
 
