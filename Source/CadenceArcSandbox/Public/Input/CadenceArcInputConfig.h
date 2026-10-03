@@ -28,7 +28,8 @@ struct CADENCEARCSANDBOX_API FCadenceArcInputActionConfig
 	bool IsValid() const
 	{
 		return InputTag.IsValid() && InputAction != nullptr
-			&& (InputMode == ECadenceArcInputMode::PressOnly || InputMode == ECadenceArcInputMode::HoldRelease);
+			&& (InputMode == ECadenceArcInputMode::PressOnly || InputMode == ECadenceArcInputMode::HoldRelease
+				|| InputMode == ECadenceArcInputMode::HoldIfAvailable);
 	}
 };
 
