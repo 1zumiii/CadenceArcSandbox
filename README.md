@@ -1,161 +1,183 @@
 # CadenceArc Sandbox
 
-CadenceArc Sandbox is a minimal Unreal Engine 5.7 C++ host project used to develop, integrate, and validate the [CadenceArc](https://github.com/1zumiii/CadenceArc) branching action framework.
+简体中文 | [English](README.en.md)
 
-CadenceArc resolves semantic input tags through configurable action graphs and emits action requests for an external execution system. Its core remains independent of Gameplay Ability System, animation montages, collision handling, and damage calculation.
+CadenceArc Sandbox 是一个基于 Unreal Engine 5.7 的 C++ 宿主项目，用于开发、集成和验证 [CadenceArc](https://github.com/1zumiii/CadenceArc) 连招解析框架。
 
-## Repository Relationship
+CadenceArc 根据可配置的动作图解析语义化的输入 Tag，并向外部执行系统发出动作请求。框架核心不依赖 Gameplay Ability System、动画蒙太奇、碰撞检测或伤害计算。
+
+## 仓库关系
 
 ```text
 CadenceArcSandbox
 `-- Plugins/
-    `-- CadenceArc/    # Git submodule
+    `-- CadenceArc/    # Git 子模块
 ```
 
-The repositories have separate histories:
+两个仓库各自维护历史：
 
-- `CadenceArc` contains reusable runtime types, resolver logic, and framework-owned tests.
-- `CadenceArcSandbox` contains the host project, test assets, test Gameplay Tags, and local development tooling.
+- `CadenceArc` 包含可复用的运行时类型、解析器逻辑和框架自身的测试。
+- `CadenceArcSandbox` 包含宿主项目、演示资产、测试用 Gameplay Tag 和本地开发工具。
 
-The Sandbox records a specific CadenceArc commit through its submodule pointer.
+Sandbox 通过子模块指针记录所使用的 CadenceArc 提交。
 
-## What the Sandbox Provides
+## Sandbox 提供的内容
 
-- a playable demo that drives CadenceArc with real Enhanced Input and a temporary Timer-based executor, including press/release Hold input;
-- test graphs, Gameplay Tags, and Blueprint test assets for the plugin's public API;
-- a PowerShell test runner for the plugin's automation suite.
+- 可游玩的演示：使用 Enhanced Input 和基于 Timer 的演示执行器驱动 CadenceArc，包含按住和蓄力输入；
+- 纯蓝图示例：在事件图中执行动作请求，并以 GAS Gameplay Event 的形式转发；
+- 用于调试器的动作图，以及一张故意配错、用于资产校验的图；
+- 运行插件自动化测试的 PowerShell 脚本。
 
-Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.en.md).
+框架的功能、当前状态和接口约定见[插件 README](Plugins/CadenceArc/README.md)。
 
-## Demo and Time Contract
+## 演示与时间约定
 
-The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`. Each action binds `Started`, `Completed`, and `Canceled`, carrying its tag and `InputMode`, and forwards them to the character's `UCadenceArcComponent` as press, release, and cancel. The input modes from `UCadenceArcInputConfig` are written into the component once when input is bound, and the character implements `ICadenceArcInputContextProvider` to add a `Dir.Forward` context tag while W is held. A tag mapped by more than one action is skipped with a warning, because the component pairs presses by tag.
+启动地图和游戏地图都是 `Content/Demo/Maps/L_CadenceArcDemo`。`ACadenceArcDemoCharacter` 通过 `UCadenceArcInputConfig` 把 Enhanced Input 的 Input Action 映射为语义化的 Gameplay Tag。`UCadenceArcInputConfig` 继承插件的 `UCadenceArcInputActionSet`，并补充 Mapping Context、移动和重置输入。
 
-`InputMode` selects how a key reaches the resolver: `PressOnly` submits on press, and `HoldRelease` requests a hold qualification on press and settles on release or automatic release. On a node without `Released` transitions for that tag, a `HoldRelease` key submits on press instead, so the same key still responds immediately in actions that have no charge branch.
+插件的 `UCadenceArcInputBinderComponent` 负责绑定输入：
 
-The character's `UCadenceArcComponent` (from the plugin) owns the resolver and holds the combo graph. It stamps every call with World game time, advances hold time every tick, pairs presses and releases, and broadcasts every action request through `OnActionRequested`. `UCadenceArcDemoExecutorComponent` only executes: it subscribes to `OnActionRequested`, simulates each action with timers, and reports start, buffer window, and completion back to the component. Timers stay in the Sandbox; the resolver itself never reads engine time. `EndPlay` cancels tracked inputs without synthesizing releases.
+- 每个映射的 `Started`、`Completed` 和 `Canceled` 分别转为角色上 `UCadenceArcComponent` 的按下、松开和取消；
+- 绑定时把配置中的输入方式写入组件；
+- 角色失去控制器时，取消按住中的输入。
 
-Demo assets:
+角色实现了 `ICadenceArcInputContextProvider`，按住 W 时提供 `Dir.Forward` 上下文。同一个 Tag 或 Input Action 映射多次时，只绑定第一条并输出警告，因为组件按 Tag 配对按下和松开。
 
-- `DA_CadenceArcInputConfig` -- both keys `PressOnly`;
-- `DA_CadenceArcInputConfigHeavyHoldRelease` -- Light `PressOnly`, Heavy `HoldRelease`;
-- `DA_TestComboGraph` -- the original press-only graph;
-- `DA_TestComboGraphAutoRelease` and `DA_TestComboGraphMaxRelease` -- Hold graphs with a charge start of 0.2 s, a full charge of 0.8 s, and zero or positive maximum hold;
-- `DA_TestComboGraphCombo` -- a realistic Light/Heavy combo with shared finishers, charge tiers, and a loop back to the first skill;
-- `DA_TestComboGraphTree` -- a wide branching tree (27 nodes, five levels, no merges) for checking the debugger layout;
-- `DA_TestComboGraphStress` -- a dense graph for layout stress testing.
+`InputMode` 决定按键如何进入解析器：
 
-The character blueprint selects the input config and graph. `MaxBufferedInputAgeSeconds = 0` disables expiry; a positive value limits the age of the buffered input at completion.
+| 输入方式 | 行为 |
+| --- | --- |
+| `PressOnly` | 按下时提交 |
+| `HoldRelease` | 按下时申请按住资格，在松开或自动释放时结算 |
+| `HoldIfAvailable` | 当前节点有该 Tag 的 `Released` 转移时等待松开，否则按下立即提交。没有蓄力分支的动作中，同一个键仍能立即响应 |
 
-Every resolver call and its outcome is visible in the editor's **Arc Debugger** and **Arc History** tabs (**Tools > Debug**); see the [plugin's debugger guide](https://github.com/1zumiii/CadenceArc/blob/master/Docs/Debugger.md) for screenshots. The demo therefore prints only problems the resolver cannot see, in red on screen: an invalid executor timing configuration, a missing resolver or World, and a failed resolver initialization (such a resolver never appears in the debugger). Handshake failures, debug-scenario rejections, and failed time advances are written to `LogCadenceArcDemo` as warnings only (Output Log and `Saved/Logs/CadenceArcSandbox.log`).
+角色上的 `UCadenceArcComponent` 来自插件，持有解析器和动作图。它为每次调用填入 World 游戏时间，逐帧推进按住时间，配对按下和松开，并通过 `OnActionRequested` 发出所有动作请求。
 
-`Content/Demo/BP_CadenceArcBPTest` and `L_CadenceArcBPTest` exercise the plugin's Blueprint API with their own resolver, independently of the C++ demo executor.
+`UCadenceArcDemoExecutorComponent` 只负责执行：订阅 `OnActionRequested`，用 Timer 模拟动作，并把开始、缓冲窗口和完成回调给组件。Timer 只存在于 Sandbox 中，解析器本身不读取引擎时间。`EndPlay` 会取消仍在追踪的输入，不会补发松开。
 
-## Manual Checks
+演示内容位于 `Content/Demo`：
 
-- **Asset validation:** run Unreal's data validation on a valid combo graph and on a separate, intentionally broken copy. Errors should identify the invalid configuration; the valid graph should pass.
-- **PIE smoke test:** confirm real input, window handling, combo continuation, and readable log output.
-- **Hold smoke test:** with the Heavy `HoldRelease` config, a short press gives the tap tier and a full charge gives the charged tier; with zero maximum hold the charged attack fires on its own and the later physical release does nothing.
-- **Debugger smoke test:** open Arc Debugger and Arc History, select the PIE resolver, and play a combo. The committed node, candidate, preparatory edges, and history rows should follow the input; a rejected input should appear as a red history row with its reason.
+| 资产 | 说明 |
+| --- | --- |
+| `Maps/L_CadenceArcDemo` | C++ 演示：`BP_CadenceArcDemoCharacter`，使用基于 Timer 的执行器 |
+| `Maps/L_CadenceArcBlueprintDemo` | 蓝图示例：`BP_CadenceArcBlueprintDemo` 继承演示角色，关闭 C++ 执行器（`bAutoExecute = false`），在事件图中执行请求并发送真实的 GAS Gameplay Event |
+| `Input/DA_CadenceArcInputConfig` | Light 为 `PressOnly`，Heavy 为 `HoldIfAvailable`，并包含 Mapping Context、移动和重置输入 |
+| `Graphs/DA_ComboGraphTreeConditional` | 32 个节点的分支树，带蓄力档位，部分转移设置了上下文、停顿和优先级条件。两张地图都使用这张图 |
+| `Graphs/DA_ComboGraphCombo` | 接近实际游戏的 Light/Heavy 连招，包含共享终结技、蓄力档位和回到第一招的循环 |
+| `Graphs/DA_ComboGraphStress` | 用于布局压力测试的密集图 |
 
-Exact expiry boundaries, invalid time, and Last Input Wins are covered by automated tests; manual subsecond timing is not required. For an easy visual expiry demo, set action duration to 6 s, the buffer window to 1-5 s, and MaxAge to 2 s: an input early in the window expires, one near its end does not.
+`Content/Tests/DA_ComboGraphInvalid` 是故意配错的图，用于下文的资产校验检查。
 
-## Getting Started
+输入配置在角色蓝图中指定，动作图在角色的 `CadenceArc` 组件上设置。`MaxBufferedInputAgeSeconds = 0` 表示不限制缓冲时长；设为正数时，完成回调消费缓冲时会检查缓冲输入是否超过这个时长。
 
-Clone the Sandbox together with the plugin:
+解析器的每次调用和结果都可以在编辑器的 **Arc Debugger** 和 **Arc History** 标签页中查看（**Tools > Debug**），截图见[插件的调试器文档](https://github.com/1zumiii/CadenceArc/blob/master/Docs/Debugger.md)。因此，演示执行器只在屏幕上用红字显示解析器无法记录的问题：同一个 Actor 上缺少 CadenceArc 组件，以及执行器时序配置无效。握手失败、调试场景中的拒绝和推进时间失败只以警告写入 `LogCadenceArcDemo`，可以在 Output Log 和 `Saved/Logs/CadenceArcSandbox.log` 中查看。
+
+## 手动检查
+
+- **资产校验**：对 `Content/Demo/Graphs` 中的动作图和 `Content/Tests/DA_ComboGraphInvalid` 运行 Unreal 的数据校验。有效的图应通过校验，错误的图应报告具体的配置问题。
+- **PIE 冒烟测试**：确认真实输入、缓冲窗口、连招衔接和日志输出都正常。
+- **按住输入**：在有 Heavy 松手档位的节点上，短按触发普通档，满蓄力后松开触发蓄力档；按住超过上限时，蓄力攻击自动释放，之后的物理松开不再产生动作。在没有 Heavy 松手转移的节点上，Heavy 按下立即触发。
+- **蓝图示例**：打开 `Maps/L_CadenceArcBlueprintDemo` 并打出一段连招。屏幕上会显示每个请求以及为它收到的 GAS 事件，Arc Debugger 的表现与 C++ 演示相同。
+- **调试器**：打开 Arc Debugger 和 Arc History，选择 PIE 中的解析器，然后打出一段连招。已提交的节点、候选请求、预备边和历史记录都应随输入变化；被拒绝的输入应显示为红色记录，并附带原因。
+
+精确的过期边界、无效时间和 Last Input Wins 都由自动化测试覆盖，不需要手动控制亚秒级时序。如果想直观地观察缓冲过期，可以把动作时长设为 6 秒、缓冲窗口设为 1～5 秒、`MaxBufferedInputAgeSeconds` 设为 2 秒：窗口开头的输入会过期，接近窗口末尾的输入不会过期。
+
+## 开始使用
+
+连同插件一起克隆 Sandbox：
 
 ```powershell
 git clone --recurse-submodules https://github.com/1zumiii/CadenceArcSandbox.git
 ```
 
-If the repository was cloned without submodules:
+如果克隆时没有包含子模块：
 
 ```powershell
 git submodule update --init --recursive
 ```
 
-Generate project files if required, build the `CadenceArcSandboxEditor` target in the Development Editor configuration, and open `CadenceArcSandbox.uproject` with Unreal Engine 5.7.
+按需生成项目文件，以 Development Editor 配置编译 `CadenceArcSandboxEditor` 目标，然后用 Unreal Engine 5.7 打开 `CadenceArcSandbox.uproject`。
 
-Before modifying the plugin, confirm that its submodule is on a branch rather than a detached commit:
+修改插件前，先确认子模块位于分支上，而不是处于游离的提交：
 
 ```powershell
 git -C Plugins/CadenceArc switch master
 git -C Plugins/CadenceArc pull --ff-only
 ```
 
-## Running Tests
+## 运行测试
 
-Close Unreal Editor and run this command from the Sandbox root:
+关闭 Unreal Editor，然后在 Sandbox 根目录执行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\Scripts\RunCadenceArcTests.ps1
 ```
 
-The script:
+脚本会依次完成以下工作：
 
-- reads the project's `EngineAssociation`;
-- locates the corresponding Unreal Engine installation from the Windows registry;
-- performs a cold `CadenceArcSandboxEditor` build;
-- runs every test matching `CadenceArc` with `-culture=en`;
-- prints a concise result summary;
-- returns the underlying build or test exit code.
+1. 读取项目的 `EngineAssociation`；
+2. 从 Windows 注册表找到对应的 Unreal Engine 安装位置；
+3. 冷编译 `CadenceArcSandboxEditor` 目标；
+4. 以 `-culture=en` 运行所有名称匹配 `CadenceArc` 的测试；
+5. 输出简要的结果摘要；
+6. 返回编译或测试的退出码。
 
-Useful optional arguments:
+常用的可选参数：
 
 ```powershell
-# Run a narrower test filter.
+# 只运行部分测试
 .\Scripts\RunCadenceArcTests.ps1 -Filter "CadenceArc.Resolver.Handshake"
 
-# Reuse an already-built editor binary.
+# 复用已经编译好的编辑器
 .\Scripts\RunCadenceArcTests.ps1 -SkipBuild
 
-# Override engine discovery.
+# 手动指定引擎位置
 .\Scripts\RunCadenceArcTests.ps1 -EngineRoot "E:\Games\UE_5.7"
 ```
 
-The full Unreal log is written to:
+完整的 Unreal 日志位于：
 
 ```text
 Saved/Logs/CadenceArcSandbox.log
 ```
 
-### Rider External Tool
+### Rider 外部工具
 
-Rider's Unreal test runner may mark successful localized test output as aborted. A reliable local shortcut can be configured under `Settings -> Tools -> External Tools`:
+Rider 的 Unreal 测试面板可能把本地化输出的成功测试标记为 Aborted。可以在 `Settings -> Tools -> External Tools` 中配置一个本地快捷方式：
 
 ```text
 Name:              Run CadenceArc Tests
 Program:           C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-Arguments:         -NoLogo -NoProfile -ExecutionPolicy Bypass -File "<absolute sandbox path>\Scripts\RunCadenceArcTests.ps1"
-Working directory: <absolute sandbox path>
+Arguments:         -NoLogo -NoProfile -ExecutionPolicy Bypass -File "<sandbox 绝对路径>\Scripts\RunCadenceArcTests.ps1"
+Working directory: <sandbox 绝对路径>
 ```
 
-The External Tool definition is machine-specific and should not be committed. The PowerShell runner itself is part of this repository.
+外部工具的配置与本机路径有关，不应提交。PowerShell 脚本本身属于本仓库。
 
-## Development Workflow
+## 开发流程
 
-When both repositories change, use this order:
+两个仓库都有改动时，按以下顺序提交：
 
-1. Commit and push `Plugins/CadenceArc`.
-2. Return to the Sandbox root.
-3. Commit the updated `Plugins/CadenceArc` submodule pointer and any Sandbox changes.
-4. Push `CadenceArcSandbox`.
+1. 提交并推送 `Plugins/CadenceArc`。
+2. 回到 Sandbox 根目录。
+3. 提交更新后的 `Plugins/CadenceArc` 子模块指针，以及 Sandbox 的其他改动。
+4. 推送 `CadenceArcSandbox`。
 
-This prevents the Sandbox from referencing a plugin commit that other clones cannot fetch.
+这样可以避免 Sandbox 引用一个其他人无法获取的插件提交。
 
-## Repository Boundary
+## 仓库边界
 
-Sandbox-specific maps, input tags, and demonstration assets belong here. Reusable graph types, resolver behavior, validation logic, and framework-owned tests belong in the CadenceArc plugin repository.
+Sandbox 专用的地图、输入 Tag 和演示资产放在本仓库。可复用的图类型、解析器行为、校验逻辑和框架自身的测试放在 CadenceArc 插件仓库。
 
-The following remain outside the core framework:
+以下内容不属于框架核心：
 
-- Gameplay Ability and montage execution;
-- character, weapon, collision, and damage systems;
-- WarriorRPG-specific integration code.
+- Gameplay Ability 和蒙太奇的执行；
+- 角色、武器、碰撞和伤害系统；
+- WarriorRPG 专用的集成代码。
 
-## Requirements
+## 环境要求
 
 - Unreal Engine 5.7
-- A supported Unreal Engine C++ toolchain
+- 对应版本的 Unreal Engine C++ 工具链
+- Gameplay Abilities 插件（项目中已启用，仅蓝图示例使用）
 - Git
 - Git LFS

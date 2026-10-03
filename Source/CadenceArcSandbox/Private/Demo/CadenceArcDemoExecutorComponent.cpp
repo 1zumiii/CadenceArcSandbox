@@ -14,6 +14,10 @@ UCadenceArcDemoExecutorComponent::UCadenceArcDemoExecutorComponent()
 void UCadenceArcDemoExecutorComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	if (!bAutoExecute)
+	{
+		return;
+	}
 	CadenceArc = GetOwner() ? GetOwner()->FindComponentByClass<UCadenceArcComponent>() : nullptr;
 	if (!IsValid(CadenceArc))
 	{

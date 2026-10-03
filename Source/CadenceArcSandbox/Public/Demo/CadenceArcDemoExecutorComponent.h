@@ -64,6 +64,10 @@ class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComp
 	void ClearExecutionTimers();
 
 public:
+	// 关闭后不订阅动作请求。BP_CadenceArcBlueprintDemo 继承 Demo 角色，由蓝图自己处理请求，因此关闭此项。
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo")
+	bool bAutoExecute = true;
+
 	UCadenceArcDemoExecutorComponent();
 
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
