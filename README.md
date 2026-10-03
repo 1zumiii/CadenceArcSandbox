@@ -26,7 +26,7 @@ The Sandbox records a specific CadenceArc commit through its submodule pointer.
 - test graphs, Gameplay Tags, and Blueprint test assets for the plugin's public API;
 - a PowerShell test runner for the plugin's automation suite and the Sandbox's own router tests.
 
-Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.md).
+Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.en.md).
 
 ## Demo and Time Contract
 
