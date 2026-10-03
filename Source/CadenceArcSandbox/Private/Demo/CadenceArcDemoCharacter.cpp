@@ -6,16 +6,17 @@
 #include "InputActionValue.h"
 #include "Math/RotationMatrix.h"
 #include "Component/CadenceArcComponent.h"
+#include "CadenceArcInputBinderComponent.h"
 #include "Demo/CadenceArcDemoExecutorComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
-#include "Input/CadenceArcInputBinding.h"
 #include "Input/CadenceArcInputConfig.h"
 
 ACadenceArcDemoCharacter::ACadenceArcDemoCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	CadenceArcComponent = CreateDefaultSubobject<UCadenceArcComponent>(TEXT("CadenceArc"));
+	CadenceArcInputBinder = CreateDefaultSubobject<UCadenceArcInputBinderComponent>(TEXT("CadenceArcInputBinder"));
 	DemoExecutor = CreateDefaultSubobject<UCadenceArcDemoExecutorComponent>(TEXT("DemoExecutor"));
 }
 
@@ -73,23 +74,8 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 			this, &ACadenceArcDemoCharacter::Input_MoveCompleted);
 	}
 
-	CadenceArc::Demo::Input::BindComboInputActions(
-		EnhancedInputComponent,
-		InputConfig,
-		this,
-		&ACadenceArcDemoCharacter::Input_CadenceArcStarted,
-		&ACadenceArcDemoCharacter::Input_CadenceArcCompleted,
-		&ACadenceArcDemoCharacter::Input_CadenceArcCanceled
-	);
-
-	// 输入方式只在输入配置里维护一份，绑定时写入 CadenceArc 组件
-	for (const FCadenceArcInputActionConfig& Config : InputConfig->ComboInputActions)
-	{
-		if (Config.IsValid() && IsValid(CadenceArcComponent))
-		{
-			CadenceArcComponent->SetInputMode(Config.InputTag, Config.InputMode);
-		}
-	}
+	// 输入方式只在输入配置里维护一份，绑定时写入 CadenceArc 组件；上下文由 CollectInputContext 提供
+	CadenceArcInputBinder->BindInputActions(EnhancedInputComponent, InputConfig);
 
 	if (InputConfig->ResetInputAction)
 	{
@@ -134,30 +120,6 @@ FGameplayTagContainer ACadenceArcDemoCharacter::MakeInputContextTags() const
 		ContextTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("CadenceArc.Test.Context.Dir.Forward")));
 	}
 	return ContextTags;
-}
-
-void ACadenceArcDemoCharacter::Input_CadenceArcStarted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
-{
-	if (IsValid(CadenceArcComponent))
-	{
-		CadenceArcComponent->PressInput(InputTag); // 输入方式按配置，上下文由 CollectInputContext 提供
-	}
-}
-
-void ACadenceArcDemoCharacter::Input_CadenceArcCompleted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
-{
-	if (IsValid(CadenceArcComponent))
-	{
-		CadenceArcComponent->ReleaseInput(InputTag);
-	}
-}
-
-void ACadenceArcDemoCharacter::Input_CadenceArcCanceled(FGameplayTag InputTag, ECadenceArcInputMode Mode)
-{
-	if (IsValid(CadenceArcComponent))
-	{
-		CadenceArcComponent->CancelInput(InputTag);
-	}
 }
 
 void ACadenceArcDemoCharacter::Input_ResetCombo()

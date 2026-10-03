@@ -5,12 +5,12 @@
 #include "Component/CadenceArcInputContextProvider.h"
 #include "CadenceArcDemoCharacter.generated.h"
 
-enum class ECadenceArcInputMode : uint8;
 struct FGameplayTag;
 struct FGameplayTagContainer;
 struct FInputActionValue;
 class UCadenceArcInputConfig;
 class UCadenceArcComponent;
+class UCadenceArcInputBinderComponent;
 class UCadenceArcDemoExecutorComponent;
 
 UCLASS()
@@ -37,6 +37,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
 	TObjectPtr<UCadenceArcComponent> CadenceArcComponent;
 
+	// 把 InputConfig 中的连招 Input Action 绑定到 CadenceArc 组件：Started 按下、Completed 松开、Canceled 取消
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
+	TObjectPtr<UCadenceArcInputBinderComponent> CadenceArcInputBinder;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
 	TObjectPtr<UCadenceArcInputConfig> InputConfig;
 
@@ -45,14 +49,5 @@ private:
 	void Input_Move(const FInputActionValue& Value);
 	void Input_MoveCompleted(const FInputActionValue& Value);
 	FGameplayTagContainer MakeInputContextTags() const;
-	
-	void Input_CadenceArcStarted(
-		FGameplayTag InputTag, ECadenceArcInputMode Mode);
-
-	void Input_CadenceArcCompleted(
-		FGameplayTag InputTag, ECadenceArcInputMode Mode);
-
-	void Input_CadenceArcCanceled(
-		FGameplayTag InputTag, ECadenceArcInputMode Mode);
 	void Input_ResetCombo();
 };

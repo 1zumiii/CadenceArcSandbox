@@ -15,7 +15,8 @@ public class CadenceArcSandbox : ModuleRules
 			"InputCore",
 			"EnhancedInput",
 			"GameplayTags",
-			"CadenceArc"
+			"CadenceArc",
+			"CadenceArcEnhancedInput"
 		]);
 		
 	}

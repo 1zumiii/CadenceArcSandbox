@@ -1,49 +1,22 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
-#include "Engine/DataAsset.h"
-#include "GameplayTagContainer.h"
-#include "Input/CadenceArcInputTypes.h"
+#include "CadenceArcInputActionSet.h"
 #include "CadenceArcInputConfig.generated.h"
 
 
 class UInputMappingContext;
 class UInputAction;
 
-USTRUCT(BlueprintType)
-struct CADENCEARCSANDBOX_API FCadenceArcInputActionConfig
-{
-	GENERATED_BODY()
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input",
-		meta=(Categories="CadenceArc.Test.Input"))
-	FGameplayTag InputTag;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
-	TObjectPtr<UInputAction> InputAction;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
-	ECadenceArcInputMode InputMode = ECadenceArcInputMode::PressOnly;
-
-	bool IsValid() const
-	{
-		return InputTag.IsValid() && InputAction != nullptr
-			&& (InputMode == ECadenceArcInputMode::PressOnly || InputMode == ECadenceArcInputMode::HoldRelease
-				|| InputMode == ECadenceArcInputMode::HoldIfAvailable);
-	}
-};
-
+// Demo 的输入配置：连招输入映射来自 UCadenceArcInputActionSet（InputActions），这里补充 Mapping Context、重置和移动
 UCLASS()
-class CADENCEARCSANDBOX_API UCadenceArcInputConfig : public UDataAsset
+class CADENCEARCSANDBOX_API UCadenceArcInputConfig : public UCadenceArcInputActionSet
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input", meta=(TitleProperty="InputTag"))
-	TArray<FCadenceArcInputActionConfig> ComboInputActions;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
 	TObjectPtr<UInputAction> ResetInputAction;
