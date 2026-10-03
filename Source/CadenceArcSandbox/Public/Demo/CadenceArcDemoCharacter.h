@@ -6,6 +6,8 @@
 
 enum class ECadenceArcInputMode : uint8;
 struct FGameplayTag;
+struct FGameplayTagContainer;
+struct FInputActionValue;
 class UCadenceArcInputConfig;
 class UCadenceArcDemoExecutorComponent;
 
@@ -28,6 +30,12 @@ private:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
 	TObjectPtr<UCadenceArcInputConfig> InputConfig;
+
+	// 镜头参照的移动输入：Y 为前后，X 为左右；不依赖角色转向。
+	FVector2D LastMoveAxis = FVector2D::ZeroVector;
+	void Input_Move(const FInputActionValue& Value);
+	void Input_MoveCompleted(const FInputActionValue& Value);
+	FGameplayTagContainer MakeInputContextTags() const;
 	
 	void Input_CadenceArcStarted(
 		FGameplayTag InputTag, ECadenceArcInputMode Mode);

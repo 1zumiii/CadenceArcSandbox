@@ -46,4 +46,7 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
 	TObjectPtr<UInputAction> ResetInputAction;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Input")
+	TObjectPtr<UInputAction> MoveInputAction;
 };

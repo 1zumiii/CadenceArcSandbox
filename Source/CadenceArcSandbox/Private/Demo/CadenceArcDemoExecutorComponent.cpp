@@ -193,7 +193,8 @@ void UCadenceArcDemoExecutorComponent::ResetCombo()
 	}
 }
 
-void UCadenceArcDemoExecutorComponent::PressInput(const FGameplayTag& InputTag, ECadenceArcInputMode Mode)
+void UCadenceArcDemoExecutorComponent::PressInput(
+	const FGameplayTag& InputTag, ECadenceArcInputMode Mode, const FGameplayTagContainer& ContextTags)
 {
 	UWorld* World = GetWorld();
 	if (!InputRouter || !World)
@@ -207,11 +208,12 @@ void UCadenceArcDemoExecutorComponent::PressInput(const FGameplayTag& InputTag, 
 		[this](const FCadenceArcActionRequest& Request)
 		{
 			StartRequest(Request);
-		}
+		}, ContextTags
 	);
 }
 
-void UCadenceArcDemoExecutorComponent::ReleaseInput(const FGameplayTag& InputTag)
+void UCadenceArcDemoExecutorComponent::ReleaseInput(
+	const FGameplayTag& InputTag, const FGameplayTagContainer& ContextTags)
 {
 	UWorld* World = GetWorld();
 	if (!InputRouter || !World)
@@ -225,7 +227,7 @@ void UCadenceArcDemoExecutorComponent::ReleaseInput(const FGameplayTag& InputTag
 		[this](const FCadenceArcActionRequest& Request)
 		{
 			StartRequest(Request);
-		}
+		}, ContextTags
 	);
 }
 

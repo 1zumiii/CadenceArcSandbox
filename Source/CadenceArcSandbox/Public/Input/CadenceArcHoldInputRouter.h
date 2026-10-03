@@ -17,8 +17,10 @@ public:
 
 	void Advance(const double Now, const FStartRequest& StartRequest);
 	void Press(const FGameplayTag& Tag, const ECadenceArcInputMode Mode,
-	           const double Now, const FStartRequest& StartRequest);
-	void Release(const FGameplayTag& Tag, double Now, FStartRequest StartRequest);
+	           const double Now, const FStartRequest& StartRequest,
+	           const FGameplayTagContainer& ContextTags = FGameplayTagContainer());
+	void Release(const FGameplayTag& Tag, double Now, FStartRequest StartRequest,
+	             const FGameplayTagContainer& ContextTags = FGameplayTagContainer());
 	void Cancel(const FGameplayTag& Tag);
 	void CancelAll(); // 失焦／解绑／EndPlay，不生成 Released
 

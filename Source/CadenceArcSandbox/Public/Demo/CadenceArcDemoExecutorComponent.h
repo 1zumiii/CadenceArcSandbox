@@ -71,13 +71,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
 	void ResetCombo();
 	
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
+	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo", meta=(AutoCreateRefTerm="ContextTags"))
 	void PressInput(
 		const FGameplayTag& InputTag,
-		ECadenceArcInputMode Mode
+		ECadenceArcInputMode Mode,
+		const FGameplayTagContainer& ContextTags
 	);
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
-	void ReleaseInput(const FGameplayTag& InputTag);
+	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo", meta=(AutoCreateRefTerm="ContextTags"))
+	void ReleaseInput(const FGameplayTag& InputTag, const FGameplayTagContainer& ContextTags);
 	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
 	void CancelInput(const FGameplayTag& InputTag);
 

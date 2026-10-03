@@ -17,7 +17,7 @@ void FCadenceArcHoldInputRouter::Advance(const double Now, const FStartRequest& 
 
 void FCadenceArcHoldInputRouter::Press(
 	const FGameplayTag& Tag, const ECadenceArcInputMode Mode,
-	const double Now, const FStartRequest& StartRequest
+	const double Now, const FStartRequest& StartRequest, const FGameplayTagContainer& ContextTags
 )
 {
 	UCadenceArcResolver* R = Resolver.Get();
@@ -38,11 +38,14 @@ void FCadenceArcHoldInputRouter::Press(
 		return;
 	}
 	PressedByTag.Add(Tag, FTrackedPress{Pressed.GetToken(), Mode});
+	// Tracker 只负责配对与时间；宿主事实写入事件副本，由 Resolver 随缓冲/资格保存。
+	FCadenceArcInputEvent PressEvent = Pressed.GetInputEvent();
+	PressEvent.ContextTags = ContextTags;
 	switch (Mode)
 	{
 	case ECadenceArcInputMode::PressOnly:
 		{
-			if (const FCadenceArcSubmitOutcome Outcome = R->SubmitInput(Pressed.GetInputEvent()); Outcome.
+			if (const FCadenceArcSubmitOutcome Outcome = R->SubmitInput(PressEvent); Outcome.
 				HasActionRequest())
 			{
 				StartRequest(Outcome.GetActionRequest());
@@ -51,12 +54,13 @@ void FCadenceArcHoldInputRouter::Press(
 		}
 
 	case ECadenceArcInputMode::HoldRelease:
-		R->BeginInputHold(Pressed.GetToken(), Pressed.GetInputEvent());
+		R->BeginInputHold(Pressed.GetToken(), PressEvent);
 		break;
 	}
 }
 
-void FCadenceArcHoldInputRouter::Release(const FGameplayTag& Tag, double Now, FStartRequest StartRequest)
+void FCadenceArcHoldInputRouter::Release(
+	const FGameplayTag& Tag, double Now, FStartRequest StartRequest, const FGameplayTagContainer& ContextTags)
 {
 	const UCadenceArcResolver* R = Resolver.Get();
 	if (!R) { return; }
@@ -87,9 +91,10 @@ void FCadenceArcHoldInputRouter::Release(const FGameplayTag& Tag, double Now, FS
 		{
 			break;
 		}
-		FCadenceArcInputAdvanceOutcome Outcome = Resolver->ReleaseInputHold(
-			Press.Token, ReleaseOutcome.GetInputEvent()
-		);
+		// 手动松手采用松手时的方向；自动释放由 Resolver 使用按下时冻结的上下文。
+		FCadenceArcInputEvent ReleaseEvent = ReleaseOutcome.GetInputEvent();
+		ReleaseEvent.ContextTags = ContextTags;
+		FCadenceArcInputAdvanceOutcome Outcome = Resolver->ReleaseInputHold(Press.Token, ReleaseEvent);
 		if (Outcome.HasActionRequest())
 		{
 			StartRequest(Outcome.GetResolution().GetActionRequest());

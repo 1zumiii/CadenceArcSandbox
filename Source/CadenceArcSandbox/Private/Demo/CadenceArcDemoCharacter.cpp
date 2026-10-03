@@ -3,6 +3,8 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "InputMappingContext.h"
+#include "InputActionValue.h"
+#include "Math/RotationMatrix.h"
 #include "Demo/CadenceArcDemoExecutorComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
@@ -18,6 +20,7 @@ ACadenceArcDemoCharacter::ACadenceArcDemoCharacter()
 void ACadenceArcDemoCharacter::PawnClientRestart()
 {
 	Super::PawnClientRestart();
+	LastMoveAxis = FVector2D::ZeroVector;
 
 	if (!IsValid(InputConfig) || !IsValid(InputConfig->DefaultMappingContext))
 	{
@@ -58,6 +61,16 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 
 	checkf(IsValid(InputConfig), TEXT("InputConfig is not valid. Please assign a valid InputConfig in the editor."));
 
+	if (InputConfig->MoveInputAction)
+	{
+		EnhancedInputComponent->BindAction(InputConfig->MoveInputAction, ETriggerEvent::Triggered,
+			this, &ACadenceArcDemoCharacter::Input_Move);
+		EnhancedInputComponent->BindAction(InputConfig->MoveInputAction, ETriggerEvent::Completed,
+			this, &ACadenceArcDemoCharacter::Input_MoveCompleted);
+		EnhancedInputComponent->BindAction(InputConfig->MoveInputAction, ETriggerEvent::Canceled,
+			this, &ACadenceArcDemoCharacter::Input_MoveCompleted);
+	}
+
 	CadenceArc::Demo::Input::BindComboInputActions(
 		EnhancedInputComponent,
 		InputConfig,
@@ -78,11 +91,39 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 	}
 }
 
+void ACadenceArcDemoCharacter::Input_Move(const FInputActionValue& Value)
+{
+	LastMoveAxis = Value.Get<FVector2D>();
+	if (Controller)
+	{
+		const FRotator YawRotation(0.0, Controller->GetControlRotation().Yaw, 0.0);
+		const FRotationMatrix Rotation(YawRotation);
+		AddMovementInput(Rotation.GetUnitAxis(EAxis::X), LastMoveAxis.Y);
+		AddMovementInput(Rotation.GetUnitAxis(EAxis::Y), LastMoveAxis.X);
+	}
+}
+
+void ACadenceArcDemoCharacter::Input_MoveCompleted(const FInputActionValue& Value)
+{
+	LastMoveAxis = FVector2D::ZeroVector;
+}
+
+FGameplayTagContainer ACadenceArcDemoCharacter::MakeInputContextTags() const
+{
+	FGameplayTagContainer ContextTags;
+	// Demo 的 Forward 表示镜头参照下按着前；角色转身不会把 S/A/D 变成前输入。
+	if (LastMoveAxis.Y > 0.7)
+	{
+		ContextTags.AddTag(FGameplayTag::RequestGameplayTag(TEXT("CadenceArc.Test.Context.Dir.Forward")));
+	}
+	return ContextTags;
+}
+
 void ACadenceArcDemoCharacter::Input_CadenceArcStarted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
 {
 	if (IsValid(DemoExecutor))
 	{
-		DemoExecutor->PressInput(InputTag, Mode);
+		DemoExecutor->PressInput(InputTag, Mode, MakeInputContextTags());
 	}
 }
 
@@ -90,7 +131,7 @@ void ACadenceArcDemoCharacter::Input_CadenceArcCompleted(FGameplayTag InputTag, 
 {
 	if (IsValid(DemoExecutor))
 	{
-		DemoExecutor->ReleaseInput(InputTag);
+		DemoExecutor->ReleaseInput(InputTag, MakeInputContextTags());
 	}
 }
 
