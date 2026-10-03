@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "Component/CadenceArcInputContextProvider.h"
 #include "CadenceArcDemoCharacter.generated.h"
 
 enum class ECadenceArcInputMode : uint8;
@@ -13,7 +14,7 @@ class UCadenceArcComponent;
 class UCadenceArcDemoExecutorComponent;
 
 UCLASS()
-class CADENCEARCSANDBOX_API ACadenceArcDemoCharacter : public ACharacter
+class CADENCEARCSANDBOX_API ACadenceArcDemoCharacter : public ACharacter, public ICadenceArcInputContextProvider
 {
 	GENERATED_BODY()
 
@@ -24,6 +25,9 @@ protected:
 	virtual void PawnClientRestart() override;
 
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	// 按键时的方向作为事件上下文：CadenceArc 组件在按下和松开时调用
+	virtual FGameplayTagContainer CollectInputContext_Implementation(FGameplayTag InputTag, ECadenceArcInputPhase Phase) const override;
 
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))

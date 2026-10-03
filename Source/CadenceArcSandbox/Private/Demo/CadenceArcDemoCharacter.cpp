@@ -82,6 +82,15 @@ void ACadenceArcDemoCharacter::SetupPlayerInputComponent(UInputComponent* Player
 		&ACadenceArcDemoCharacter::Input_CadenceArcCanceled
 	);
 
+	// 输入方式只在输入配置里维护一份，绑定时写入 CadenceArc 组件
+	for (const FCadenceArcInputActionConfig& Config : InputConfig->ComboInputActions)
+	{
+		if (Config.IsValid() && IsValid(CadenceArcComponent))
+		{
+			CadenceArcComponent->SetInputMode(Config.InputTag, Config.InputMode);
+		}
+	}
+
 	if (InputConfig->ResetInputAction)
 	{
 		EnhancedInputComponent->BindAction(
@@ -110,6 +119,12 @@ void ACadenceArcDemoCharacter::Input_MoveCompleted(const FInputActionValue& Valu
 	LastMoveAxis = FVector2D::ZeroVector;
 }
 
+FGameplayTagContainer ACadenceArcDemoCharacter::CollectInputContext_Implementation(
+	FGameplayTag InputTag, ECadenceArcInputPhase Phase) const
+{
+	return MakeInputContextTags();
+}
+
 FGameplayTagContainer ACadenceArcDemoCharacter::MakeInputContextTags() const
 {
 	FGameplayTagContainer ContextTags;
@@ -125,7 +140,7 @@ void ACadenceArcDemoCharacter::Input_CadenceArcStarted(FGameplayTag InputTag, EC
 {
 	if (IsValid(CadenceArcComponent))
 	{
-		CadenceArcComponent->PressInput(InputTag, Mode, MakeInputContextTags());
+		CadenceArcComponent->PressInput(InputTag); // 输入方式按配置，上下文由 CollectInputContext 提供
 	}
 }
 
@@ -133,7 +148,7 @@ void ACadenceArcDemoCharacter::Input_CadenceArcCompleted(FGameplayTag InputTag, 
 {
 	if (IsValid(CadenceArcComponent))
 	{
-		CadenceArcComponent->ReleaseInput(InputTag, MakeInputContextTags());
+		CadenceArcComponent->ReleaseInput(InputTag);
 	}
 }
 
