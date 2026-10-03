@@ -9,6 +9,7 @@ struct FGameplayTag;
 struct FGameplayTagContainer;
 struct FInputActionValue;
 class UCadenceArcInputConfig;
+class UCadenceArcComponent;
 class UCadenceArcDemoExecutorComponent;
 
 UCLASS()
@@ -27,6 +28,10 @@ protected:
 private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
 	TObjectPtr<UCadenceArcDemoExecutorComponent> DemoExecutor;
+
+	// CadenceArc 的标准入口：负责时间、逐帧推进、按键配对和请求出口。连招图配置在这个组件上
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
+	TObjectPtr<UCadenceArcComponent> CadenceArcComponent;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="CadenceArc|Demo", meta=(AllowPrivateAccess=true))
 	TObjectPtr<UCadenceArcInputConfig> InputConfig;

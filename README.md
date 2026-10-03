@@ -22,19 +22,18 @@ The Sandbox records a specific CadenceArc commit through its submodule pointer.
 ## What the Sandbox Provides
 
 - a playable demo that drives CadenceArc with real Enhanced Input and a temporary Timer-based executor, including press/release Hold input;
-- `FCadenceArcHoldInputRouter`, a World-independent host adapter that pairs physical presses and releases and feeds them to the resolver;
 - test graphs, Gameplay Tags, and Blueprint test assets for the plugin's public API;
-- a PowerShell test runner for the plugin's automation suite and the Sandbox's own router tests.
+- a PowerShell test runner for the plugin's automation suite.
 
 Framework features, current status, and API contracts are documented in the [plugin README](Plugins/CadenceArc/README.en.md).
 
 ## Demo and Time Contract
 
-The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`. Each action binds `Started`, `Completed`, and `Canceled`, carrying its tag and `InputMode`, and forwards them to `UCadenceArcDemoExecutorComponent` as press, release, and cancel. A tag mapped by more than one action is skipped with a warning, because the router pairs presses by tag.
+The startup and game map is `Content/Demo/L_CadenceArcDemo`. `ACadenceArcDemoCharacter` maps Enhanced Input actions to semantic Gameplay Tags through `UCadenceArcInputConfig`. Each action binds `Started`, `Completed`, and `Canceled`, carrying its tag and `InputMode`, and forwards them to the character's `UCadenceArcComponent` as press, release, and cancel, together with a `Dir.Forward` context tag while W is held. A tag mapped by more than one action is skipped with a warning, because the component pairs presses by tag.
 
 `InputMode` selects how a key reaches the resolver: `PressOnly` submits on press, and `HoldRelease` requests a hold qualification on press and settles on release or automatic release. The node you are on must have `Released` transitions for every `HoldRelease` tag; otherwise the press is rejected with `NoMatchingTransition` and nothing happens.
 
-The executor owns an `FCadenceArcHoldInputRouter`, which holds the input tracker and a tag-to-press table. Every call with a timestamp first advances resolver time and starts any request that produces, then handles the input. The component reads `GetWorld()->GetTimeSeconds()` once per callback: every tick advances time, and action completion advances with the same timestamp it passes to `NotifyActionCompleted`. Time is measured in seconds and follows pause and time dilation. Timers and all World access stay in the Sandbox; the plugin runtime never reads engine time. `EndPlay` cancels tracked inputs without synthesizing releases.
+The character's `UCadenceArcComponent` (from the plugin) owns the resolver and holds the combo graph. It stamps every call with World game time, advances hold time every tick, pairs presses and releases, and broadcasts every action request through `OnActionRequested`. `UCadenceArcDemoExecutorComponent` only executes: it subscribes to `OnActionRequested`, simulates each action with timers, and reports start, buffer window, and completion back to the component. Timers stay in the Sandbox; the resolver itself never reads engine time. `EndPlay` cancels tracked inputs without synthesizing releases.
 
 Demo assets:
 

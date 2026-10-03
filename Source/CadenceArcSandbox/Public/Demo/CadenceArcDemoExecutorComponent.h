@@ -2,22 +2,19 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
-#include "Graph/CadenceArcGraph.h"
-#include "Input/CadenceArcHoldInputRouter.h"
-#include "Resolver/CadenceArcResolver.h"
+#include "Resolver/CadenceArcResolverTypes.h"
 #include "CadenceArcDemoExecutorComponent.generated.h"
 
+class UCadenceArcComponent;
 
+/**
+ * 基于 Timer 的演示执行器：订阅同一个 Actor 上 UCadenceArcComponent 的 OnActionRequested，
+ * 用固定时长模拟动作，并在对应时刻回调开始、缓冲窗口开关和完成。只负责执行，输入和时间都由 CadenceArc 组件处理。
+ */
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
 class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComponent
 {
 	GENERATED_BODY()
-
-	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo")
-	TObjectPtr<UCadenceArcGraph> ComboGraph;
-
-	UPROPERTY(Transient)
-	TObjectPtr<UCadenceArcResolver> Resolver;
 
 	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo|Timing", meta=(ClampMin="0.01", UIMin="0.01"))
 	float BufferOpenDelay = 0.25f;
@@ -25,6 +22,7 @@ class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComp
 	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo|Timing", meta=(ClampMin="0.01", UIMin="0.01"))
 	float BufferCloseDelay = 0.85f;
 
+	// 动作时长。到时调用 NotifyActionCompleted，停顿从这个时刻开始计算
 	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo|Timing", meta=(ClampMin="0.01", UIMin="0.01"))
 	float ActionDuration = 1.20f;
 
@@ -43,9 +41,12 @@ class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComp
 	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo|Debug Scenarios", meta=(ClampMin="0", UIMin="0", UIMax="5"))
 	int32 RejectEveryNthRequest = 0;
 
-	// 每次动作完成后再用同一个请求号发一次 Completed，演示过期回调被 Resolver 拒绝且不影响状态
+	// 每次动作完成后再用同一个请求号发一次 Completed，演示过期回调被拒绝且不影响状态
 	UPROPERTY(EditAnywhere, Category="CadenceArc|Demo|Debug Scenarios")
 	bool bSendStaleCallbacks = false;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCadenceArcComponent> CadenceArc;
 
 	int32 RequestCounter = 0; // 用于 RejectEveryNthRequest
 
@@ -54,43 +55,19 @@ class CADENCEARCSANDBOX_API UCadenceArcDemoExecutorComponent : public UActorComp
 	FTimerHandle BufferCloseTimerHandle;
 	FTimerHandle ActionCompleteTimerHandle;
 
-	TUniquePtr<FCadenceArcHoldInputRouter> InputRouter;
-
-	// Helper Functions
-	void StartRequest(const FCadenceArcActionRequest& Request);
+	UFUNCTION()
+	void HandleActionRequested(const FCadenceArcActionRequest& Request);
 	void BeginExecution(const FCadenceArcActionRequest& Request);
-	void HandleOpenBufferWindow(const int64 RequestId) const;
-	void HandleCloseBufferWindow(const int64 RequestId) const;
-	void HandleActionCompleted(const int64 RequestId);
+	void HandleOpenBufferWindow(int64 RequestId) const;
+	void HandleCloseBufferWindow(int64 RequestId) const;
+	void HandleActionCompleted(int64 RequestId);
 	void ClearExecutionTimers();
 
 public:
-	// Sets default values for this component's properties
 	UCadenceArcDemoExecutorComponent();
 
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
-	void ResetCombo();
-	
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo", meta=(AutoCreateRefTerm="ContextTags"))
-	void PressInput(
-		const FGameplayTag& InputTag,
-		ECadenceArcInputMode Mode,
-		const FGameplayTagContainer& ContextTags
-	);
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo", meta=(AutoCreateRefTerm="ContextTags"))
-	void ReleaseInput(const FGameplayTag& InputTag, const FGameplayTagContainer& ContextTags);
-	UFUNCTION(BlueprintCallable, Category="CadenceArc|Demo")
-	void CancelInput(const FGameplayTag& InputTag);
-
-	virtual void TickComponent(
-		float DeltaTime, ELevelTick TickType,
-		FActorComponentTickFunction* ThisTickFunction
-	) override;
-	
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 protected:
-	// Called when the game starts
 	virtual void BeginPlay() override;
-	
 };

@@ -1,13 +1,42 @@
 #include "Demo/CadenceArcDemoExecutorComponent.h"
+
 #include "CadenceArcDebugHelper.h"
+#include "Component/CadenceArcComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "TimerManager.h"
 
-void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionRequest& Request)
+UCadenceArcDemoExecutorComponent::UCadenceArcDemoExecutorComponent()
 {
-	if (!IsValid(Resolver))
+	PrimaryComponentTick.bCanEverTick = false;
+}
+
+void UCadenceArcDemoExecutorComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	CadenceArc = GetOwner() ? GetOwner()->FindComponentByClass<UCadenceArcComponent>() : nullptr;
+	if (!IsValid(CadenceArc))
 	{
-		Debug::Print(TEXT("Resolver is not valid. Cannot start request."), FColor::Red, 5.f);
+		Debug::Print(TEXT("Demo executor needs a CadenceArc component on the same actor."), FColor::Red, 10.f);
+		return;
+	}
+	CadenceArc->OnActionRequested.AddDynamic(this, &UCadenceArcDemoExecutorComponent::HandleActionRequested);
+}
+
+void UCadenceArcDemoExecutorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (IsValid(CadenceArc))
+	{
+		CadenceArc->OnActionRequested.RemoveDynamic(this, &UCadenceArcDemoExecutorComponent::HandleActionRequested);
+	}
+	ClearExecutionTimers();
+	Super::EndPlay(EndPlayReason);
+}
+
+void UCadenceArcDemoExecutorComponent::HandleActionRequested(const FCadenceArcActionRequest& Request)
+{
+	if (!IsValid(CadenceArc) || !IsValid(GetWorld()))
+	{
 		return;
 	}
 
@@ -15,21 +44,12 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 	{
 		Debug::Print(FString::Printf(
 			TEXT("Invalid timing configuration. BufferOpenDelay: %f, BufferCloseDelay: %f, ActionDuration: %f"),
-			BufferOpenDelay,
-			BufferCloseDelay,
-			ActionDuration), FColor::Red, 5.f);
-		Resolver->NotifyActionRejected(Request.RequestId);
+			BufferOpenDelay, BufferCloseDelay, ActionDuration), FColor::Red, 5.f);
+		CadenceArc->NotifyActionRejected(Request.RequestId);
 		return;
 	}
 
-	if (!IsValid(GetWorld()))
-	{
-		Debug::Print(TEXT("World is not valid. Cannot start request."), FColor::Red, 5.f);
-		Resolver->NotifyActionRejected(Request.RequestId);
-		return;
-	}
-
-	// 调试场景：延迟开始。等待期间 Resolver 停在 AwaitingStart，候选在 Arc Debugger 里显示为黄色
+	// 调试场景：延迟开始。等待期间解析器停在 AwaitingStart，候选在 Arc Debugger 里显示为黄色
 	if (StartDelaySeconds > 0.f)
 	{
 		ClearExecutionTimers();
@@ -44,8 +64,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 				}
 			},
 			StartDelaySeconds,
-			false
-		);
+			false);
 		return;
 	}
 	BeginExecution(Request);
@@ -53,7 +72,7 @@ void UCadenceArcDemoExecutorComponent::StartRequest(const FCadenceArcActionReque
 
 void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionRequest& Request)
 {
-	if (!IsValid(Resolver) || !IsValid(GetWorld()))
+	if (!IsValid(CadenceArc) || !IsValid(GetWorld()))
 	{
 		return;
 	}
@@ -63,224 +82,86 @@ void UCadenceArcDemoExecutorComponent::BeginExecution(const FCadenceArcActionReq
 	if (RejectEveryNthRequest > 0 && RequestCounter % RejectEveryNthRequest == 0)
 	{
 		Debug::Warn(FString::Printf(TEXT("Executor rejected request %lld (debug scenario)."), Request.RequestId));
-		Resolver->NotifyActionRejected(Request.RequestId);
+		CadenceArc->NotifyActionRejected(Request.RequestId);
 		return;
 	}
 
-	const ECadenceArcHandshakeResult HandshakeResult = Resolver->NotifyActionStarted(Request.RequestId);
+	const ECadenceArcHandshakeResult HandshakeResult = CadenceArc->NotifyActionStarted(Request.RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
 		Debug::Warn(FString::Printf(
 			TEXT("Failed to start action. Request Id: %lld, Source: %s, Target: %s, Result: %s"),
-			Request.RequestId,
-			*Request.SourceActionTag.ToString(),
-			*Request.TargetActionTag.ToString(),
+			Request.RequestId, *Request.SourceActionTag.ToString(), *Request.TargetActionTag.ToString(),
 			*UEnum::GetValueAsString(HandshakeResult)));
 		return;
-	};
+	}
 
+	// 每个计时器都带着这次请求的编号：旧动作的计时器即使晚到，也会被解析器按过期回调拒绝
 	ClearExecutionTimers();
 	TWeakObjectPtr<UCadenceArcDemoExecutorComponent> WeakThis = this;
-	int64 CurrentRequestId = Request.RequestId;
-	GetWorld()->GetTimerManager().SetTimer(
-		BufferOpenTimerHandle,
-		[WeakThis, CurrentRequestId]()
-		{
-			if (WeakThis.IsValid())
-			{
-				WeakThis->HandleOpenBufferWindow(CurrentRequestId);
-			}
-		},
-		BufferOpenDelay * TimeScale,
-		false
-	);
-	GetWorld()->GetTimerManager().SetTimer(
-		BufferCloseTimerHandle,
-		[WeakThis, CurrentRequestId]()
-		{
-			if (WeakThis.IsValid())
-			{
-				WeakThis->HandleCloseBufferWindow(CurrentRequestId);
-			}
-		},
-		BufferCloseDelay * TimeScale,
-		false
-	);
-	GetWorld()->GetTimerManager().SetTimer(
-		ActionCompleteTimerHandle,
-		[WeakThis, CurrentRequestId]()
-		{
-			if (WeakThis.IsValid())
-			{
-				WeakThis->HandleActionCompleted(CurrentRequestId);
-			}
-		},
-		ActionDuration * TimeScale,
-		false
-	);
+	const int64 RequestId = Request.RequestId;
+	FTimerManager& Timers = GetWorld()->GetTimerManager();
+	Timers.SetTimer(BufferOpenTimerHandle, [WeakThis, RequestId]()
+	{
+		if (WeakThis.IsValid()) { WeakThis->HandleOpenBufferWindow(RequestId); }
+	}, BufferOpenDelay * TimeScale, false);
+	Timers.SetTimer(BufferCloseTimerHandle, [WeakThis, RequestId]()
+	{
+		if (WeakThis.IsValid()) { WeakThis->HandleCloseBufferWindow(RequestId); }
+	}, BufferCloseDelay * TimeScale, false);
+	Timers.SetTimer(ActionCompleteTimerHandle, [WeakThis, RequestId]()
+	{
+		if (WeakThis.IsValid()) { WeakThis->HandleActionCompleted(RequestId); }
+	}, ActionDuration * TimeScale, false);
 }
 
 void UCadenceArcDemoExecutorComponent::HandleOpenBufferWindow(const int64 RequestId) const
 {
-	ECadenceArcHandshakeResult HandshakeResult = Resolver->OpenBufferWindow(RequestId);
+	const ECadenceArcHandshakeResult HandshakeResult = CadenceArc->OpenBufferWindow(RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Warn(FString::Printf(
-			TEXT("Failed to open buffer window. Request Id: %lld, Result: %s"),
-			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
+		Debug::Warn(FString::Printf(TEXT("Failed to open buffer window. Request Id: %lld, Result: %s"),
+		                            RequestId, *UEnum::GetValueAsString(HandshakeResult)));
 	}
 }
 
 void UCadenceArcDemoExecutorComponent::HandleCloseBufferWindow(const int64 RequestId) const
 {
-	const ECadenceArcHandshakeResult HandshakeResult = Resolver->CloseBufferWindow(RequestId);
+	const ECadenceArcHandshakeResult HandshakeResult = CadenceArc->CloseBufferWindow(RequestId);
 	if (HandshakeResult != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Warn(FString::Printf(
-			TEXT("Failed to close buffer window. Request Id: %lld, Result: %s"),
-			RequestId, *UEnum::GetValueAsString(HandshakeResult)));
+		Debug::Warn(FString::Printf(TEXT("Failed to close buffer window. Request Id: %lld, Result: %s"),
+		                            RequestId, *UEnum::GetValueAsString(HandshakeResult)));
 	}
 }
 
 void UCadenceArcDemoExecutorComponent::HandleActionCompleted(const int64 RequestId)
 {
-	const double Now = GetWorld()->GetTimeSeconds();
-	InputRouter->Advance(Now,
-	                     [this](const FCadenceArcActionRequest& R) { StartRequest(R); }
-	);
-	const FCadenceArcActionCompletionOutcome Outcome = Resolver->NotifyActionCompleted(RequestId, Now);
+	// 消费缓冲产生的下一个请求由 CadenceArc 组件从 OnActionRequested 发出，回到 HandleActionRequested
+	const FCadenceArcActionCompletionOutcome Outcome = CadenceArc->NotifyActionCompleted(RequestId);
 	if (Outcome.GetHandshakeResult() != ECadenceArcHandshakeResult::Success)
 	{
-		Debug::Warn(FString::Printf(
-			TEXT("Action completion handshake failed, Consuming not attempted. Request Id: %lld, Result: %s"),
-			RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
+		Debug::Warn(FString::Printf(TEXT("Action completion handshake failed. Request Id: %lld, Result: %s"),
+		                            RequestId, *UEnum::GetValueAsString(Outcome.GetHandshakeResult())));
 		return;
 	}
 
-	// Consume the next action request if the handshake was successful and the buffer consume result is resolved
-	if (Outcome.HasNextActionRequest())
-	{
-		StartRequest(Outcome.GetNextActionRequest());
-	}
-
-	// 调试场景：同一个请求再报一次完成。Resolver 会按过期回调拒绝它，不改变任何状态，
+	// 调试场景：同一个请求再报一次完成。解析器按过期回调拒绝它，不改变任何状态，
 	// 只在 Arc History 里留下一条失败记录
 	if (bSendStaleCallbacks)
 	{
-		Resolver->NotifyActionCompleted(RequestId, GetWorld()->GetTimeSeconds());
+		CadenceArc->NotifyActionCompleted(RequestId);
 	}
 }
 
 void UCadenceArcDemoExecutorComponent::ClearExecutionTimers()
 {
-	GetWorld()->GetTimerManager().ClearTimer(StartDelayTimerHandle);
-	GetWorld()->GetTimerManager().ClearTimer(BufferOpenTimerHandle);
-	GetWorld()->GetTimerManager().ClearTimer(BufferCloseTimerHandle);
-	GetWorld()->GetTimerManager().ClearTimer(ActionCompleteTimerHandle);
-}
-
-// Sets default values for this component's properties
-UCadenceArcDemoExecutorComponent::UCadenceArcDemoExecutorComponent()
-{
-	PrimaryComponentTick.bCanEverTick = true;
-}
-
-void UCadenceArcDemoExecutorComponent::ResetCombo()
-{
-	if (IsValid(Resolver))
+	if (const UWorld* World = GetWorld())
 	{
-		Resolver->Reset(); // 结果记在 Arc History 里
-	}
-}
-
-void UCadenceArcDemoExecutorComponent::PressInput(
-	const FGameplayTag& InputTag, ECadenceArcInputMode Mode, const FGameplayTagContainer& ContextTags)
-{
-	UWorld* World = GetWorld();
-	if (!InputRouter || !World)
-	{
-		return;
-	}
-
-	const double Now = World->GetTimeSeconds();
-	InputRouter->Press(
-		InputTag, Mode, Now,
-		[this](const FCadenceArcActionRequest& Request)
-		{
-			StartRequest(Request);
-		}, ContextTags
-	);
-}
-
-void UCadenceArcDemoExecutorComponent::ReleaseInput(
-	const FGameplayTag& InputTag, const FGameplayTagContainer& ContextTags)
-{
-	UWorld* World = GetWorld();
-	if (!InputRouter || !World)
-	{
-		return;
-	}
-
-	const double Now = World->GetTimeSeconds();
-	InputRouter->Release(
-		InputTag, Now,
-		[this](const FCadenceArcActionRequest& Request)
-		{
-			StartRequest(Request);
-		}, ContextTags
-	);
-}
-
-void UCadenceArcDemoExecutorComponent::CancelInput(const FGameplayTag& InputTag)
-{
-	UWorld* World = GetWorld();
-	if (!InputRouter || !World)
-	{
-		return;
-	}
-
-	const double Now = World->GetTimeSeconds();
-	InputRouter->Cancel(InputTag);
-}
-
-void UCadenceArcDemoExecutorComponent::TickComponent(
-	float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction
-)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (!IsValid(Resolver) || InputRouter == nullptr) { return; }
-	InputRouter->Advance(GetWorld()->GetTimeSeconds(),
-	                     [this](const FCadenceArcActionRequest& R) { StartRequest(R); }
-	);
-}
-
-void UCadenceArcDemoExecutorComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-	if (InputRouter == nullptr || !IsValid(Resolver))
-	{
-		Super::EndPlay(EndPlayReason);
-		return;
-	}
-	InputRouter->CancelAll();
-	ClearExecutionTimers();
-	Super::EndPlay(EndPlayReason);
-}
-
-
-// Called when the game starts
-void UCadenceArcDemoExecutorComponent::BeginPlay()
-{
-	Super::BeginPlay();
-	if (!IsValid(ComboGraph)) { return; }
-	Resolver = NewObject<UCadenceArcResolver>(this);
-	const ECadenceArcResolverInitResult ResolverInitResult = Resolver->Initialize(ComboGraph);
-	if (ResolverInitResult == ECadenceArcResolverInitResult::Success)
-	{
-		InputRouter = MakeUnique<FCadenceArcHoldInputRouter>(Resolver);
-	}
-	else
-	{
-		Debug::Print(FString::Printf(
-			TEXT("Failed to initialize Resolver. Result: %s"), *UEnum::GetValueAsString(ResolverInitResult)), FColor::Red, 10.f);
+		FTimerManager& Timers = World->GetTimerManager();
+		Timers.ClearTimer(StartDelayTimerHandle);
+		Timers.ClearTimer(BufferOpenTimerHandle);
+		Timers.ClearTimer(BufferCloseTimerHandle);
+		Timers.ClearTimer(ActionCompleteTimerHandle);
 	}
 }

@@ -5,6 +5,7 @@
 #include "InputMappingContext.h"
 #include "InputActionValue.h"
 #include "Math/RotationMatrix.h"
+#include "Component/CadenceArcComponent.h"
 #include "Demo/CadenceArcDemoExecutorComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "GameFramework/PlayerController.h"
@@ -14,6 +15,7 @@
 ACadenceArcDemoCharacter::ACadenceArcDemoCharacter()
 {
 	PrimaryActorTick.bCanEverTick = false;
+	CadenceArcComponent = CreateDefaultSubobject<UCadenceArcComponent>(TEXT("CadenceArc"));
 	DemoExecutor = CreateDefaultSubobject<UCadenceArcDemoExecutorComponent>(TEXT("DemoExecutor"));
 }
 
@@ -121,32 +123,32 @@ FGameplayTagContainer ACadenceArcDemoCharacter::MakeInputContextTags() const
 
 void ACadenceArcDemoCharacter::Input_CadenceArcStarted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
 {
-	if (IsValid(DemoExecutor))
+	if (IsValid(CadenceArcComponent))
 	{
-		DemoExecutor->PressInput(InputTag, Mode, MakeInputContextTags());
+		CadenceArcComponent->PressInput(InputTag, Mode, MakeInputContextTags());
 	}
 }
 
 void ACadenceArcDemoCharacter::Input_CadenceArcCompleted(FGameplayTag InputTag, ECadenceArcInputMode Mode)
 {
-	if (IsValid(DemoExecutor))
+	if (IsValid(CadenceArcComponent))
 	{
-		DemoExecutor->ReleaseInput(InputTag, MakeInputContextTags());
+		CadenceArcComponent->ReleaseInput(InputTag, MakeInputContextTags());
 	}
 }
 
 void ACadenceArcDemoCharacter::Input_CadenceArcCanceled(FGameplayTag InputTag, ECadenceArcInputMode Mode)
 {
-	if (IsValid(DemoExecutor))
+	if (IsValid(CadenceArcComponent))
 	{
-		DemoExecutor->CancelInput(InputTag);
+		CadenceArcComponent->CancelInput(InputTag);
 	}
 }
 
 void ACadenceArcDemoCharacter::Input_ResetCombo()
 {
-	if (IsValid(DemoExecutor))
+	if (IsValid(CadenceArcComponent))
 	{
-		DemoExecutor->ResetCombo();
+		CadenceArcComponent->ResetCombo(); // 结果记在 Arc History 里
 	}
 }
