@@ -24,7 +24,7 @@ Sandbox 通过子模块指针记录所使用的 CadenceArc 提交。
 ## Sandbox 提供的内容
 
 - 可游玩的演示：使用 Enhanced Input 和基于 Timer 的演示执行器驱动 CadenceArc，包含按住和蓄力输入；
-- 纯蓝图示例：在事件图中执行动作请求，并以 GAS Gameplay Event 的形式转发；
+- 蓝图执行器示例：复用 C++ 演示角色，在事件图中处理动作请求，并发送 GAS Gameplay Event；
 - 用于调试器的动作图，以及一张故意配错、用于资产校验的图；
 - 运行插件自动化测试的 PowerShell 脚本。
 
@@ -47,12 +47,12 @@ Sandbox 通过子模块指针记录所使用的 CadenceArc 提交。
 | 输入方式 | 行为 |
 | --- | --- |
 | `PressOnly` | 按下时提交 |
-| `HoldRelease` | 按下时申请按住资格，在松开或自动释放时结算 |
-| `HoldIfAvailable` | 当前节点有该 Tag 的 `Released` 转移时等待松开，否则按下立即提交。没有蓄力分支的动作中，同一个键仍能立即响应 |
+| `HoldRelease` | 按下时申请按住资格，在松开或自动释放时结算；当前节点没有该 Tag 的 `Released` 转移时拒绝申请 |
+| `HoldIfAvailable` | 当前节点有该 Tag 的 `Released` 转移时等待松开，否则按下立即提交；不预判松开时的条件能否满足 |
 
 角色上的 `UCadenceArcComponent` 来自插件，持有解析器和动作图。它为每次调用填入 World 游戏时间，逐帧推进按住时间，配对按下和松开，并通过 `OnActionRequested` 发出所有动作请求。
 
-`UCadenceArcDemoExecutorComponent` 只负责执行：订阅 `OnActionRequested`，用 Timer 模拟动作，并把开始、缓冲窗口和完成回调给组件。Timer 只存在于 Sandbox 中，解析器本身不读取引擎时间。`EndPlay` 会取消仍在追踪的输入，不会补发松开。
+`UCadenceArcDemoExecutorComponent` 只负责执行：订阅 `OnActionRequested`，用 Timer 模拟动作，并向组件报告开始、缓冲窗口和完成。这套模拟动作的 Timer 位于 Sandbox，解析器本身不读取引擎时间。`UCadenceArcComponent` 在 `EndPlay` 时取消仍在追踪的输入，不会补发松开。
 
 演示内容位于 `Content/Demo`：
 
@@ -75,11 +75,11 @@ Sandbox 通过子模块指针记录所使用的 CadenceArc 提交。
 
 - **资产校验**：对 `Content/Demo/Graphs` 中的动作图和 `Content/Tests/DA_ComboGraphInvalid` 运行 Unreal 的数据校验。有效的图应通过校验，错误的图应报告具体的配置问题。
 - **PIE 冒烟测试**：确认真实输入、缓冲窗口、连招衔接和日志输出都正常。
-- **按住输入**：在有 Heavy 松手档位的节点上，短按触发普通档，满蓄力后松开触发蓄力档；按住超过上限时，蓄力攻击自动释放，之后的物理松开不再产生动作。在没有 Heavy 松手转移的节点上，Heavy 按下立即触发。
+- **按住输入**：在有 Heavy 松手档位的节点上，短按触发普通档，满蓄力后松开触发蓄力档；按住超过上限时，蓄力攻击自动释放，之后的物理松开不再产生动作。在没有 Heavy 松手转移的节点上，Heavy 按下立即提交，能否产生动作取决于对应的按下转移及其条件。
 - **蓝图示例**：打开 `Maps/L_CadenceArcBlueprintDemo` 并打出一段连招。屏幕上会显示每个请求以及为它收到的 GAS 事件，Arc Debugger 的表现与 C++ 演示相同。
 - **调试器**：打开 Arc Debugger 和 Arc History，选择 PIE 中的解析器，然后打出一段连招。已提交的节点、候选请求、预备边和历史记录都应随输入变化；被拒绝的输入应显示为红色记录，并附带原因。
 
-精确的过期边界、无效时间和 Last Input Wins 都由自动化测试覆盖，不需要手动控制亚秒级时序。如果想直观地观察缓冲过期，可以把动作时长设为 6 秒、缓冲窗口设为 1～5 秒、`MaxBufferedInputAgeSeconds` 设为 2 秒：窗口开头的输入会过期，接近窗口末尾的输入不会过期。
+精确的过期边界、无效时间和 Last Input Wins 都由自动化测试覆盖，不需要手动控制亚秒级时序。如果想直观地观察缓冲过期，可以把动作时长设为 6 秒、缓冲窗口设为动作开始后的第 1 秒至第 5 秒、`MaxBufferedInputAgeSeconds` 设为 2 秒：窗口开头的输入会过期，接近窗口末尾的输入不会过期。
 
 ## 开始使用
 
@@ -127,7 +127,7 @@ powershell -ExecutionPolicy Bypass -File .\Scripts\RunCadenceArcTests.ps1
 # 只运行部分测试
 .\Scripts\RunCadenceArcTests.ps1 -Filter "CadenceArc.Resolver.Handshake"
 
-# 复用已经编译好的编辑器
+# 编译产物与当前源码一致时，跳过构建
 .\Scripts\RunCadenceArcTests.ps1 -SkipBuild
 
 # 手动指定引擎位置
@@ -178,6 +178,6 @@ Sandbox 专用的地图、输入 Tag 和演示资产放在本仓库。可复用�
 
 - Unreal Engine 5.7
 - 对应版本的 Unreal Engine C++ 工具链
-- Gameplay Abilities 插件（项目中已启用，仅蓝图示例使用）
+- Gameplay Abilities 插件（项目中已启用；蓝图示例和插件的 GAS 执行器模块使用）
 - Git
 - Git LFS
